@@ -1,0 +1,16 @@
+{
+  "sourceLanguage" : "zh-Hans",
+  "strings" : {
+    "menu_bar.accessibility_label" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Calenda 日历"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}
