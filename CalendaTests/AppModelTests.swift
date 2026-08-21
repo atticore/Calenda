@@ -249,6 +249,32 @@ struct AppModelTests {
         #expect(model.displayedMonth == CalendarMonthID(year: 2026, month: 2))
     }
 
+    @Test
+    func weekStartSettingRearrangesGridAndKeepsSelection() async throws {
+        let suiteName = "CalendaTests.AppModel.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { UserDefaults().removePersistentDomain(forName: suiteName) }
+        let store = SettingsStore(defaults: defaults)
+
+        let clock = try makeClock(at: "2026-02-14T10:00:00Z")
+        let model = AppModel(
+            clock: clock,
+            calendarService: CalendarService(timeZone: Fixture.utc),
+            settings: store
+        )
+        #expect(model.cells.first?.id == CalendarDayID(year: 2026, month: 1, day: 26))
+
+        store.update { $0.weekStart = .sunday }
+
+        // 设置变更经主队列通知派发，等待两个主线程跳转完成
+        await MainActor.run {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        }
+
+        #expect(model.cells.first?.id == CalendarDayID(year: 2026, month: 2, day: 1))
+        #expect(model.selectedDay == CalendarDayID(year: 2026, month: 2, day: 14))
+    }
+
     private func makeInstant(_ instant: String) throws -> Date {
         try #require(ISO8601DateFormatter().date(from: instant))
     }

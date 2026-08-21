@@ -12,6 +12,7 @@ enum PanelCloseReason: Sendable {
     case outsideClick
     case escape
     case applicationDeactivated
+    case settings
 }
 
 @MainActor

@@ -21,6 +21,7 @@ final class AppModel {
 
     private let clock: any ClockProviding
     private var calendarService: CalendarService
+    private let settings: (any SettingsProviding)?
     private(set) var isPanelVisible = false
     private var minuteTimer: Timer?
     private var midnightTimer: Timer?
@@ -33,7 +34,8 @@ final class AppModel {
 
     init(
         clock: any ClockProviding = SystemClock(),
-        calendarService: CalendarService = CalendarService()
+        calendarService: CalendarService = CalendarService(),
+        settings: (any SettingsProviding)? = nil
     ) {
         let initialNow = clock.now
         self.clock = clock
@@ -44,7 +46,8 @@ final class AppModel {
         self.today = today
         self.selectedDay = today
         displayedMonth = CalendarMonthID(year: today.year, month: today.month)
-        weekStart = Default.weekStart
+        weekStart = settings?.settings.weekStart ?? Default.weekStart
+        self.settings = settings
         cells = []
         rebuildCells()
         registerForSystemChanges()
@@ -162,8 +165,22 @@ final class AppModel {
         scheduleMidnightRefresh()
     }
 
+    /// 设置变更即时生效（设计 13.4）：一周起始日重建 42 格与星期标题，
+    /// 保持选中日期不变。
+    private func handleSettingsChange() {
+        guard let settings else {
+            return
+        }
+        let nextWeekStart = settings.settings.weekStart
+        guard nextWeekStart != weekStart else {
+            return
+        }
+        weekStart = nextWeekStart
+        rebuildCells()
+    }
+
     private func registerForSystemChanges() {
-        systemChangeObservers = [
+        var observers = [
             NotificationCenter.default.addObserver(
                 forName: .NSCalendarDayChanged,
                 object: nil,
@@ -192,6 +209,20 @@ final class AppModel {
                 }
             },
         ]
+        if settings != nil {
+            observers.append(
+                NotificationCenter.default.addObserver(
+                    forName: .appSettingsDidChange,
+                    object: nil,
+                    queue: .main
+                ) { [weak self] _ in
+                    Task { @MainActor [weak self] in
+                        self?.handleSettingsChange()
+                    }
+                }
+            )
+        }
+        systemChangeObservers = observers
 
         wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification,

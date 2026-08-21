@@ -74,4 +74,91 @@ enum AppText {
             monthName
         )
     }
+
+    // MARK: - 壳层与设置
+
+    static let openSettings = String(
+        localized: "shell.open_settings",
+        defaultValue: "设置"
+    )
+
+    static let quitApp = String(
+        localized: "shell.quit",
+        defaultValue: "退出"
+    )
+
+    static let settingsTitle = String(
+        localized: "settings.title",
+        defaultValue: "设置"
+    )
+
+    static let settingsGeneralSection = String(
+        localized: "settings.section.general",
+        defaultValue: "通用"
+    )
+
+    static let settingsStartupSection = String(
+        localized: "settings.section.startup",
+        defaultValue: "启动"
+    )
+
+    static let settingsWeekStart = String(
+        localized: "settings.week_start",
+        defaultValue: "一周起始日"
+    )
+
+    static let weekStartSystem = String(
+        localized: "settings.week_start.system",
+        defaultValue: "跟随系统"
+    )
+
+    static let weekStartMonday = String(
+        localized: "settings.week_start.monday",
+        defaultValue: "周一"
+    )
+
+    static let weekStartSunday = String(
+        localized: "settings.week_start.sunday",
+        defaultValue: "周日"
+    )
+
+    static let settingsShowsLunar = String(
+        localized: "settings.shows_lunar",
+        defaultValue: "显示农历"
+    )
+
+    static let settingsShowsSolarTerms = String(
+        localized: "settings.shows_solar_terms",
+        defaultValue: "显示节气"
+    )
+
+    static let settingsMenuBarStyle = String(
+        localized: "settings.menu_bar_style",
+        defaultValue: "菜单栏显示"
+    )
+
+    static let menuBarStyleIcon = String(
+        localized: "settings.menu_bar_style.icon",
+        defaultValue: "仅图标"
+    )
+
+    static let menuBarStyleIconAndDate = String(
+        localized: "settings.menu_bar_style.icon_and_date",
+        defaultValue: "图标加日期"
+    )
+
+    static let settingsLoginItem = String(
+        localized: "settings.login_item",
+        defaultValue: "登录时启动"
+    )
+
+    static let openSystemSettings = String(
+        localized: "settings.open_system_settings",
+        defaultValue: "打开系统设置"
+    )
+
+    static let loginItemRegistrationFailed = String(
+        localized: "settings.login_item.registration_failed",
+        defaultValue: "注册登录项失败，请重试"
+    )
 }

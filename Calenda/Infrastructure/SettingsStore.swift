@@ -8,6 +8,14 @@
 import Foundation
 import Observation
 
+extension Notification.Name {
+    /// SettingsStore 在一次事务提交后于主线程发送；
+    /// 观察方（AppModel、StatusItemController 等）据此即时生效。
+    static let appSettingsDidChange = Notification.Name(
+        "CalendaAppSettingsDidChange"
+    )
+}
+
 @MainActor
 protocol SettingsProviding: AnyObject {
     var settings: AppSettings { get }
@@ -45,6 +53,10 @@ final class SettingsStore: SettingsProviding {
         mutation(&next)
         Self.persist(next, to: defaults)
         settings = next
+        NotificationCenter.default.post(
+            name: .appSettingsDidChange,
+            object: nil
+        )
     }
 
     // MARK: - 持久化

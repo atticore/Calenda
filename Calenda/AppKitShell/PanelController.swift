@@ -16,6 +16,8 @@ final class PanelController: PanelControlling {
         static let downArrowKeyCode: UInt16 = 125
         static let upArrowKeyCode: UInt16 = 126
         static let returnToTodayCharacter = "t"
+        static let openSettingsCharacter = ","
+        static let quitCharacter = "q"
         static let previousDayOffset = -1
         static let nextDayOffset = 1
         static let previousWeekOffset = -7
@@ -31,22 +33,37 @@ final class PanelController: PanelControlling {
         case moveSelectedDay(Int)
         case moveDisplayedMonth(Int)
         case returnToToday
+        case openSettings
+        case quit
     }
 
     private let panel: CalendarPanel
     private let hostingView: NSHostingView<PanelShellView>
     private let positioner: any PanelPositioning
     private let appModel: AppModel
+    private weak var shellActions: (any ShellActions)?
     private let outsideClickMonitor = OutsideClickMonitor()
     private var visibility = PanelVisibilityStateMachine()
 
     init(
         positioner: any PanelPositioning = PanelPositioner(),
-        appModel: AppModel = AppModel()
+        appModel: AppModel = AppModel(),
+        shellActions: (any ShellActions)? = nil
     ) {
         self.positioner = positioner
         self.appModel = appModel
-        hostingView = NSHostingView(rootView: PanelShellView(model: appModel))
+        self.shellActions = shellActions
+        hostingView = NSHostingView(
+            rootView: PanelShellView(
+                model: appModel,
+                openSettings: { [weak shellActions] in
+                    shellActions?.openSettings()
+                },
+                quit: { [weak shellActions] in
+                    shellActions?.quit()
+                }
+            )
+        )
         panel = CalendarPanel(hostedContentView: hostingView)
     }
 
@@ -132,6 +149,10 @@ final class PanelController: PanelControlling {
             appModel.moveDisplayedMonth(by: offset)
         case .returnToToday:
             appModel.returnToToday()
+        case .openSettings:
+            shellActions?.openSettings()
+        case .quit:
+            shellActions?.quit()
         }
         return true
     }
@@ -141,9 +162,17 @@ final class PanelController: PanelControlling {
     ) -> CalendarKeyboardCommand? {
         let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         if modifiers == .command,
-           event.charactersIgnoringModifiers?.lowercased()
-            == Keyboard.returnToTodayCharacter {
-            return .returnToToday
+           let character = event.charactersIgnoringModifiers?.lowercased() {
+            switch character {
+            case Keyboard.returnToTodayCharacter:
+                return .returnToToday
+            case Keyboard.openSettingsCharacter:
+                return .openSettings
+            case Keyboard.quitCharacter:
+                return .quit
+            default:
+                break
+            }
         }
 
         switch (modifiers, event.keyCode) {

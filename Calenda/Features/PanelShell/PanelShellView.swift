@@ -11,7 +11,6 @@ struct PanelShellView: View {
     private enum Presentation {
         static let brandName = "Calenda"
         static let calendarSymbol = "calendar"
-        static let escapeKeyLabel = "Esc"
         static let localeIdentifier = "zh_Hans_CN"
         static let firstDayOfMonth = 1
         static let previousMonthSymbol = "chevron.left"
@@ -20,6 +19,7 @@ struct PanelShellView: View {
         static let nextMonthOffset = 1
         static let headerHeight: CGFloat = 52
         static let footerHeight: CGFloat = 34
+        static let footerButtonDividerHeight: CGFloat = 12
         static let detailWidth: CGFloat = 200
         static let horizontalPadding: CGFloat = 24
         static let contentSpacing: CGFloat = 16
@@ -29,13 +29,21 @@ struct PanelShellView: View {
     }
 
     private let model: AppModel
+    private let openSettings: () -> Void
+    private let quit: () -> Void
     private let locale = Locale(identifier: Presentation.localeIdentifier)
     @FocusState private var focusedDay: CalendarDayID?
     @State private var isMonthPickerPresented = false
     @State private var pickerYear: Int
 
-    init(model: AppModel) {
+    init(
+        model: AppModel,
+        openSettings: @escaping () -> Void = {},
+        quit: @escaping () -> Void = {}
+    ) {
         self.model = model
+        self.openSettings = openSettings
+        self.quit = quit
         _pickerYear = State(initialValue: model.displayedMonth.year)
     }
 
@@ -157,10 +165,13 @@ struct PanelShellView: View {
             Text(Presentation.brandName)
                 .foregroundStyle(.secondary)
             Spacer()
-            Text(Presentation.escapeKeyLabel)
-                .font(.caption.monospaced())
-                .foregroundStyle(.tertiary)
+            Button(AppText.openSettings, action: openSettings)
+            Divider()
+                .frame(height: Presentation.footerButtonDividerHeight)
+            Button(AppText.quitApp, action: quit)
         }
+        .buttonStyle(.link)
+        .font(.callout)
         .padding(.horizontal, Presentation.horizontalPadding)
         .frame(height: Presentation.footerHeight)
     }

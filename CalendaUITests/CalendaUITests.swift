@@ -13,6 +13,17 @@ final class CalendaUITests: XCTestCase {
         static let existenceTimeout: TimeInterval = 5
     }
 
+    override func setUp() {
+        // 状态项按 accessibility label 跨进程匹配：单元测试宿主或手工
+        // 启动的残留实例会让点击落到别的进程，面板在错误实例中打开。
+        // 测试启动前清理同名实例，保证本用例面对唯一的菜单栏项。
+        let cleanup = Process()
+        cleanup.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
+        cleanup.arguments = ["-x", "Calenda"]
+        try? cleanup.run()
+        cleanup.waitUntilExit()
+    }
+
     @MainActor
     func testStatusItemOpensAndClosesPanel() {
         continueAfterFailure = false
