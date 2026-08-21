@@ -55,6 +55,11 @@ final class OutsideClickMonitor {
         localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) {
             @MainActor [weak self] event in
             guard event.keyCode != Keyboard.escapeKeyCode else {
+                // 月选择器等子窗口打开时，Escape 先交给弹出层自行消费，
+                // 避免一次按键同时关闭弹出层和整个面板。
+                if self?.hasVisibleChildWindow == true {
+                    return event
+                }
                 self?.requestClose(reason: .escape)
                 return nil
             }
@@ -100,6 +105,10 @@ final class OutsideClickMonitor {
 
     isolated deinit {
         remove()
+    }
+
+    private var hasVisibleChildWindow: Bool {
+        panel?.childWindows?.contains(where: \.isVisible) == true
     }
 
     private func requestClose(reason: PanelCloseReason) {

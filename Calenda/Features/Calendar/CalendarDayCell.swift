@@ -77,7 +77,11 @@ struct CalendarDayCell: View {
         }
     }
 
-    private var accessibilityLabel: Text {
-        Text("\(cell.id.year) 年 \(cell.id.month) 月 \(cell.id.day) 日")
+    private var accessibilityLabel: String {
+        AppText.dayAccessibilityLabel(
+            year: cell.id.year,
+            month: cell.id.month,
+            day: cell.id.day
+        )
     }
 }

@@ -43,6 +43,25 @@ enum AppText {
         defaultValue: "下一年"
     )
 
+    private static let dayAccessibilityLabelFormat = String(
+        localized: "calendar.day.accessibility_label",
+        defaultValue: "%1$lld 年 %2$lld 月 %3$lld 日"
+    )
+
+    static func dayAccessibilityLabel(
+        year: Int,
+        month: Int,
+        day: Int
+    ) -> String {
+        String(
+            format: dayAccessibilityLabelFormat,
+            locale: .current,
+            year,
+            month,
+            day
+        )
+    }
+
     private static let currentDisplayedMonthDescriptionFormat = String(
         localized: "calendar.month_picker.current_displayed_month_description",
         defaultValue: "%@，当前显示月份"
