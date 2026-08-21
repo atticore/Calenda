@@ -11,6 +11,16 @@
         }
       }
     },
+    "calendar.day.accessibility_label_with_status" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@，%2$@"
+          }
+        }
+      }
+    },
     "calendar.navigation.next_month" : {
       "localizations" : {
         "zh-Hans" : {
@@ -81,6 +91,56 @@
         }
       }
     },
+    "holiday.accessibility.off_day" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "法定休息日"
+          }
+        }
+      }
+    },
+    "holiday.accessibility.work_day" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "调休工作日"
+          }
+        }
+      }
+    },
+    "holiday.detail_line" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "holiday.off_badge" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "休"
+          }
+        }
+      }
+    },
+    "holiday.work_badge" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "班"
+          }
+        }
+      }
+    },
     "lunar.next_solar_term_line" : {
       "localizations" : {
         "zh-Hans" : {
@@ -97,6 +157,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Calenda 日历"
+          }
+        }
+      }
+    },
+    "settings.chinese_holidays" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用中国法定节假日"
           }
         }
       }
@@ -167,6 +237,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "通用"
+          }
+        }
+      }
+    },
+    "settings.section.holidays" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "节假日"
           }
         }
       }

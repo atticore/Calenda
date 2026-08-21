@@ -159,6 +159,17 @@ struct PanelShellView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                if let holidayMark = model.holidayMark(for: model.selectedDay) {
+                    Text(
+                        AppText.holidayDetailLine(
+                            holidayMark.name,
+                            holidayMark.isOffDay
+                                ? AppText.holidayOffBadge
+                                : AppText.holidayWorkBadge
+                        )
+                    )
+                    .foregroundStyle(holidayMark.isOffDay ? .red : .secondary)
+                }
                 Spacer()
                 Image(systemName: Presentation.calendarSymbol)
                     .font(.largeTitle)

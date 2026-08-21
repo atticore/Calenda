@@ -30,12 +30,17 @@ final class AppModel {
     private(set) var lunarInformationByDay: [CalendarDayID: LunarDayInformation] = [:]
     private(set) var showsLunar: Bool
     private(set) var showsSolarTerms: Bool
+    private(set) var holidayMarksByDay: [CalendarDayID: HolidayMark] = [:]
+    private(set) var holidayAvailabilityByYear: [Int: HolidayYearAvailability] = [:]
+    private(set) var showsChineseHolidays: Bool
 
     private let clock: any ClockProviding
     private var calendarService: CalendarService
     private let settings: (any SettingsProviding)?
     private let lunarService: any LunarCalendarProviding
     private var lunarTask: Task<Void, Never>?
+    private let holidayService: any HolidayProviding
+    private var holidayTask: Task<Void, Never>?
     private(set) var isPanelVisible = false
     private var minuteTimer: Timer?
     private var midnightTimer: Timer?
@@ -46,13 +51,15 @@ final class AppModel {
         static let weekStart: WeekStartOption = .monday
         static let showsLunar = true
         static let showsSolarTerms = true
+        static let showsChineseHolidays = true
     }
 
     init(
         clock: any ClockProviding = SystemClock(),
         calendarService: CalendarService = CalendarService(),
         settings: (any SettingsProviding)? = nil,
-        lunarService: any LunarCalendarProviding = LunarService()
+        lunarService: any LunarCalendarProviding = LunarService(),
+        holidayService: any HolidayProviding = HolidayService()
     ) {
         let initialNow = clock.now
         self.clock = clock
@@ -67,9 +74,13 @@ final class AppModel {
         showsLunar = settings?.settings.showsLunar ?? Default.showsLunar
         showsSolarTerms = settings?.settings.showsSolarTerms
             ?? Default.showsSolarTerms
+        showsChineseHolidays = settings?.settings.showsChineseHolidays
+            ?? Default.showsChineseHolidays
         self.settings = settings
         self.lunarService = lunarService
+        self.holidayService = holidayService
         lunarTask = nil
+        holidayTask = nil
         cells = []
         rebuildCells()
         registerForSystemChanges()
@@ -78,6 +89,7 @@ final class AppModel {
 
     isolated deinit {
         lunarTask?.cancel()
+        holidayTask?.cancel()
         for observer in systemChangeObservers {
             NotificationCenter.default.removeObserver(observer)
         }
@@ -93,6 +105,8 @@ final class AppModel {
         refreshFromClock()
         scheduleMidnightRefresh()
         startMinuteTicker()
+        // 弹窗打开时先渲染本地数据，过期数据由 Service 后台条件更新（10.5）
+        refreshHolidays(policy: .refreshIfStale)
     }
 
     func panelDidDisappear() {
@@ -185,13 +199,14 @@ final class AppModel {
     }
 
     /// 设置变更即时生效（设计 13.4）：一周起始日重建 42 格与星期标题，
-    /// 保持选中日期不变；农历/节气为纯显示开关，不触发重新计算。
+    /// 保持选中日期不变；农历/节气/节假日为纯显示开关，不触发重新计算。
     private func handleSettingsChange() {
         guard let settings else {
             return
         }
         showsLunar = settings.settings.showsLunar
         showsSolarTerms = settings.settings.showsSolarTerms
+        showsChineseHolidays = settings.settings.showsChineseHolidays
         let nextWeekStart = settings.settings.weekStart
         guard nextWeekStart != weekStart else {
             return
@@ -200,25 +215,42 @@ final class AppModel {
         rebuildCells()
     }
 
-    // MARK: - 农历
+    // MARK: - 农历与节假日
 
     func lunarInformation(for day: CalendarDayID) -> LunarDayInformation? {
         lunarInformationByDay[day]
     }
 
-    /// 日格第二行徽标：节气受独立开关控制，关闭时在
-    /// 农历开启的前提下降级到农历节日或农历日。
-    func lunarBadge(for day: CalendarDayID) -> LunarDayBadge? {
-        guard let information = lunarInformationByDay[day] else {
+    func holidayMark(for day: CalendarDayID) -> HolidayMark? {
+        showsChineseHolidays ? holidayMarksByDay[day] : nil
+    }
+
+    /// 日格第二行徽标：法定节日 > 节气 > 农历节日 > 农历日期（设计 5.4）；
+    /// 各级分别受显示开关控制，节气关闭时降级而非整行消失。
+    func dayBadge(for day: CalendarDayID) -> DayBadge? {
+        if showsChineseHolidays, let mark = holidayMarksByDay[day] {
+            return .holiday(mark.name)
+        }
+        guard let lunar = lunarInformationByDay[day] else {
             return nil
         }
-        if case .solarTerm = information.badge {
-            if showsSolarTerms {
-                return information.badge
-            }
-            return showsLunar ? information.badgeWithoutSolarTerm : nil
+        if case let .solarTerm(name) = lunar.badge, showsSolarTerms {
+            return .solarTerm(name)
         }
-        return showsLunar ? information.badge : nil
+        guard showsLunar else {
+            return nil
+        }
+        let lunarBadge = showsSolarTerms
+            ? lunar.badge
+            : lunar.badgeWithoutSolarTerm
+        switch lunarBadge {
+        case let .solarTerm(name):
+            return .solarTerm(name)
+        case let .lunarFestival(name):
+            return .lunarFestival(name)
+        case let .lunarDay(name):
+            return .lunarDay(name)
+        }
     }
 
     private func updateDisplayedMonth(_ newMonth: CalendarMonthID) {
@@ -264,6 +296,41 @@ final class AppModel {
             informationByDay[cell.id] = snapshot.information(for: cell.id)
         }
         lunarInformationByDay = informationByDay
+    }
+
+    /// 加载年份由 42 个可见日期动态计算（设计 10.5），
+    /// 显示 12 月或跨年网格时自然包含下一年度。
+    private func refreshHolidays(policy: RefreshPolicy) {
+        let years = Set(cells.map { $0.id.year })
+        holidayTask?.cancel()
+        guard !years.isEmpty else {
+            holidayMarksByDay = [:]
+            holidayAvailabilityByYear = [:]
+            return
+        }
+        let holidayService = holidayService
+        holidayTask = Task { [weak self] in
+            let snapshot = await holidayService.holidays(
+                for: years,
+                policy: policy
+            )
+            guard !Task.isCancelled else {
+                return
+            }
+            self?.applyHoliday(snapshot)
+        }
+    }
+
+    private func applyHoliday(_ snapshot: HolidaySnapshot) {
+        var marksByDay: [CalendarDayID: HolidayMark] = [:]
+        marksByDay.reserveCapacity(cells.count)
+        for cell in cells {
+            if let mark = snapshot.mark(for: cell.id) {
+                marksByDay[cell.id] = mark
+            }
+        }
+        holidayMarksByDay = marksByDay
+        holidayAvailabilityByYear = snapshot.availabilityByYear
     }
 
     private func registerForSystemChanges() {
@@ -375,5 +442,6 @@ final class AppModel {
             weekStart: weekStart
         )) ?? []
         refreshLunar()
+        refreshHolidays(policy: .cacheOnly)
     }
 }

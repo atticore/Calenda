@@ -27,6 +27,7 @@ struct SettingsRootView: View {
     var body: some View {
         Form {
             generalSection
+            holidaySection
             startupSection
         }
         .formStyle(.grouped)
@@ -58,6 +59,15 @@ struct SettingsRootView: View {
                     .tag(MenuBarStyle.iconAndDate)
             }
             .pickerStyle(.segmented)
+        }
+    }
+
+    private var holidaySection: some View {
+        Section(AppText.settingsHolidaySection) {
+            Toggle(
+                AppText.settingsChineseHolidays,
+                isOn: showsChineseHolidaysBinding
+            )
         }
     }
 
@@ -103,6 +113,15 @@ struct SettingsRootView: View {
             get: { store.settings.showsSolarTerms },
             set: { newValue in
                 store.update { $0.showsSolarTerms = newValue }
+            }
+        )
+    }
+
+    private var showsChineseHolidaysBinding: Binding<Bool> {
+        Binding(
+            get: { store.settings.showsChineseHolidays },
+            set: { newValue in
+                store.update { $0.showsChineseHolidays = newValue }
             }
         )
     }

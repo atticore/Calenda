@@ -13,6 +13,15 @@ final class CalendaUITests: XCTestCase {
         static let existenceTimeout: TimeInterval = 5
     }
 
+    override class func setUp() {
+        // 首个键盘事件合成前切走第三方输入法，避免 testmanagerd 授权弹窗。
+        InputSourceGuard.engage()
+    }
+
+    override class func tearDown() {
+        InputSourceGuard.restore()
+    }
+
     override func setUp() {
         // 状态项按 accessibility label 跨进程匹配：单元测试宿主或手工
         // 启动的残留实例会让点击落到别的进程，面板在错误实例中打开。
@@ -28,6 +37,8 @@ final class CalendaUITests: XCTestCase {
     func testStatusItemOpensAndClosesPanel() {
         continueAfterFailure = false
         let application = XCUIApplication()
+        // 测试环境禁用节假日网络刷新，保持用例离线确定性（设计 18.2）
+        application.launchEnvironment["CALENDA_DISABLE_NETWORK_REFRESH"] = "1"
         application.launch()
 
         let statusItem = application.statusItems[Fixture.accessibilityLabel]

@@ -18,7 +18,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ShellActions {
         let settingsStore = SettingsStore()
         self.settingsStore = settingsStore
 
-        let appModel = AppModel(settings: settingsStore)
+        let appModel = AppModel(
+            settings: settingsStore,
+            holidayService: HolidayService(client: HolidayClient())
+        )
         let panelController = PanelController(
             appModel: appModel,
             shellActions: self

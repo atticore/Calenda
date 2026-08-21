@@ -7,11 +7,11 @@
 
 import Foundation
 
-protocol ClockProviding: Sendable {
+nonisolated protocol ClockProviding: Sendable {
     var now: Date { get }
 }
 
-struct SystemClock: ClockProviding {
+nonisolated struct SystemClock: ClockProviding {
     var now: Date {
         .now
     }

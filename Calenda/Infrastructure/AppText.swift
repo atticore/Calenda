@@ -177,4 +177,67 @@ enum AppText {
             daysRemaining
         )
     }
+
+    // MARK: - 节假日
+
+    static let holidayOffBadge = String(
+        localized: "holiday.off_badge",
+        defaultValue: "休"
+    )
+
+    static let holidayWorkBadge = String(
+        localized: "holiday.work_badge",
+        defaultValue: "班"
+    )
+
+    static let holidayOffDayStatus = String(
+        localized: "holiday.accessibility.off_day",
+        defaultValue: "法定休息日"
+    )
+
+    static let holidayWorkDayStatus = String(
+        localized: "holiday.accessibility.work_day",
+        defaultValue: "调休工作日"
+    )
+
+    private static let holidayDetailLineFormat = String(
+        localized: "holiday.detail_line",
+        defaultValue: "%1$@ · %2$@"
+    )
+
+    static func holidayDetailLine(_ name: String, _ status: String) -> String {
+        String(
+            format: holidayDetailLineFormat,
+            locale: .current,
+            name,
+            status
+        )
+    }
+
+    private static let dayAccessibilityLabelWithStatusFormat = String(
+        localized: "calendar.day.accessibility_label_with_status",
+        defaultValue: "%1$@，%2$@"
+    )
+
+    static func dayAccessibilityLabelWithStatus(
+        _ base: String,
+        _ status: String
+    ) -> String {
+        String(
+            format: dayAccessibilityLabelWithStatusFormat,
+            locale: .current,
+            base,
+            status
+        )
+    }
+
+    static let settingsChineseHolidays = String(
+        localized: "settings.chinese_holidays",
+        defaultValue: "启用中国法定节假日"
+    )
+
+    static let settingsHolidaySection = String(
+        localized: "settings.section.holidays",
+        defaultValue: "节假日"
+    )
 }

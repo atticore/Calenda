@@ -18,11 +18,15 @@ struct CalendarDayCell: View {
         static let inMonthOpacity = 1.0
         static let adjacentMonthOpacity = 0.45
         static let selectionMatchedGeometryID = "calendar.day.selection"
+        static let cornerBadgeFontSize: CGFloat = 9
+        static let cornerBadgeHorizontalPadding: CGFloat = 3
+        static let cornerBadgeInset: CGFloat = 4
     }
 
     private let cell: CalendarCellModel
     private let isSelected: Bool
-    private let badge: LunarDayBadge?
+    private let badge: DayBadge?
+    private let holidayMark: HolidayMark?
     private let selectionNamespace: Namespace.ID
     private let focusedDay: FocusState<CalendarDayID?>.Binding
     private let action: () -> Void
@@ -30,7 +34,8 @@ struct CalendarDayCell: View {
     init(
         cell: CalendarCellModel,
         isSelected: Bool,
-        badge: LunarDayBadge?,
+        badge: DayBadge?,
+        holidayMark: HolidayMark?,
         selectionNamespace: Namespace.ID,
         focusedDay: FocusState<CalendarDayID?>.Binding,
         action: @escaping () -> Void
@@ -38,6 +43,7 @@ struct CalendarDayCell: View {
         self.cell = cell
         self.isSelected = isSelected
         self.badge = badge
+        self.holidayMark = holidayMark
         self.selectionNamespace = selectionNamespace
         self.focusedDay = focusedDay
         self.action = action
@@ -50,7 +56,7 @@ struct CalendarDayCell: View {
                     .font(.body.weight(.medium))
                     .monospacedDigit()
                 if let badge {
-                    // 第二行：农历日、节气或节日（设计 5.4）
+                    // 第二行：法定节日、节气或农历（设计 5.4）
                     Text(badge.label)
                         .font(.caption2)
                         .lineLimit(1)
@@ -61,12 +67,32 @@ struct CalendarDayCell: View {
             .background(selectionBackground)
             .overlay(todayOutline)
             .overlay(focusOutline)
+            .overlay(alignment: .topTrailing) { holidayCornerBadge }
         }
         .buttonStyle(.plain)
         .focused(focusedDay, equals: cell.id)
         .opacity(cell.isInDisplayedMonth ? Appearance.inMonthOpacity : Appearance.adjacentMonthOpacity)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    /// 右上角休/班徽标只表达法定作息，颜色与文字标签并用（设计 5.4）。
+    @ViewBuilder
+    private var holidayCornerBadge: some View {
+        if let holidayMark {
+            Text(
+                holidayMark.isOffDay
+                    ? AppText.holidayOffBadge
+                    : AppText.holidayWorkBadge
+            )
+            .font(.system(size: Appearance.cornerBadgeFontSize, weight: .semibold))
+            .padding(.horizontal, Appearance.cornerBadgeHorizontalPadding)
+            .foregroundStyle(
+                holidayMark.isOffDay ? .red : .secondary
+            )
+            .padding(Appearance.cornerBadgeInset)
+            .accessibilityHidden(true)
+        }
     }
 
     /// 选中背景通过 matchedGeometryEffect 在日期格之间移动（设计 5.9）。
@@ -104,10 +130,19 @@ struct CalendarDayCell: View {
     }
 
     private var accessibilityLabel: String {
-        AppText.dayAccessibilityLabel(
+        let base = AppText.dayAccessibilityLabel(
             year: cell.id.year,
             month: cell.id.month,
             day: cell.id.day
+        )
+        guard let holidayMark else {
+            return base
+        }
+        return AppText.dayAccessibilityLabelWithStatus(
+            base,
+            holidayMark.isOffDay
+                ? AppText.holidayOffDayStatus
+                : AppText.holidayWorkDayStatus
         )
     }
 }
