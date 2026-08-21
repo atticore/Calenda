@@ -33,6 +33,9 @@ final class AppModel {
     private(set) var holidayMarksByDay: [CalendarDayID: HolidayMark] = [:]
     private(set) var holidayAvailabilityByYear: [Int: HolidayYearAvailability] = [:]
     private(set) var showsChineseHolidays: Bool
+    private(set) var isWeatherEnabled: Bool
+    private(set) var temperatureUnit: TemperatureUnit
+    private(set) var weatherState: Loadable<WeatherSnapshot> = .idle
 
     private let clock: any ClockProviding
     private var calendarService: CalendarService
@@ -41,6 +44,10 @@ final class AppModel {
     private var lunarTask: Task<Void, Never>?
     private let holidayService: any HolidayProviding
     private var holidayTask: Task<Void, Never>?
+    private let weatherService: any WeatherProviding
+    private var weatherTask: Task<Void, Never>?
+    private var lastWeatherLocation: WeatherLocation?
+    private var lastActiveLocation: LocationSelection?
     private(set) var isPanelVisible = false
     private var minuteTimer: Timer?
     private var midnightTimer: Timer?
@@ -59,7 +66,10 @@ final class AppModel {
         calendarService: CalendarService = CalendarService(),
         settings: (any SettingsProviding)? = nil,
         lunarService: any LunarCalendarProviding = LunarService(),
-        holidayService: any HolidayProviding = HolidayService()
+        holidayService: any HolidayProviding = HolidayService(),
+        weatherService: any WeatherProviding = WeatherService(
+            client: UnavailableWeatherClient()
+        )
     ) {
         let initialNow = clock.now
         self.clock = clock
@@ -76,11 +86,16 @@ final class AppModel {
             ?? Default.showsSolarTerms
         showsChineseHolidays = settings?.settings.showsChineseHolidays
             ?? Default.showsChineseHolidays
+        isWeatherEnabled = settings?.settings.isWeatherEnabled ?? true
+        temperatureUnit = settings?.settings.temperatureUnit ?? .celsius
+        lastActiveLocation = settings?.settings.activeLocation
         self.settings = settings
         self.lunarService = lunarService
         self.holidayService = holidayService
+        self.weatherService = weatherService
         lunarTask = nil
         holidayTask = nil
+        weatherTask = nil
         cells = []
         rebuildCells()
         registerForSystemChanges()
@@ -90,6 +105,7 @@ final class AppModel {
     isolated deinit {
         lunarTask?.cancel()
         holidayTask?.cancel()
+        weatherTask?.cancel()
         for observer in systemChangeObservers {
             NotificationCenter.default.removeObserver(observer)
         }
@@ -107,6 +123,7 @@ final class AppModel {
         startMinuteTicker()
         // 弹窗打开时先渲染本地数据，过期数据由 Service 后台条件更新（10.5）
         refreshHolidays(policy: .refreshIfStale)
+        refreshWeather(policy: .refreshIfStale)
     }
 
     func panelDidDisappear() {
@@ -199,7 +216,8 @@ final class AppModel {
     }
 
     /// 设置变更即时生效（设计 13.4）：一周起始日重建 42 格与星期标题，
-    /// 保持选中日期不变；农历/节气/节假日为纯显示开关，不触发重新计算。
+    /// 保持选中日期不变；农历/节气/节假日与温度单位为纯显示开关；
+    /// 城市或天气开关变化触发对应的天气刷新。
     private func handleSettingsChange() {
         guard let settings else {
             return
@@ -207,6 +225,24 @@ final class AppModel {
         showsLunar = settings.settings.showsLunar
         showsSolarTerms = settings.settings.showsSolarTerms
         showsChineseHolidays = settings.settings.showsChineseHolidays
+        temperatureUnit = settings.settings.temperatureUnit
+
+        let activeLocation = settings.settings.activeLocation
+        let locationChanged = activeLocation != lastActiveLocation
+        lastActiveLocation = activeLocation
+
+        let weatherEnabled = settings.settings.isWeatherEnabled
+        let enableChanged = weatherEnabled != isWeatherEnabled
+        isWeatherEnabled = weatherEnabled
+        if !isWeatherEnabled {
+            weatherTask?.cancel()
+            weatherState = .idle
+            lastWeatherLocation = nil
+        } else if enableChanged || locationChanged {
+            // 城市改变允许立即刷新（设计 12.3）
+            refreshWeather(policy: .forceRefresh)
+        }
+
         let nextWeekStart = settings.settings.weekStart
         guard nextWeekStart != weekStart else {
             return
@@ -331,6 +367,83 @@ final class AppModel {
         }
         holidayMarksByDay = marksByDay
         holidayAvailabilityByYear = snapshot.availabilityByYear
+    }
+
+    // MARK: - 天气
+
+    /// 城市与天气只能作为单个快照原子发布（设计 12.1/12.3）：
+    /// 切换城市进入 loading(previous: nil)，不复用旧城市天气；
+    /// 同城刷新保留旧快照继续展示。
+    private func refreshWeather(policy: RefreshPolicy) {
+        weatherTask?.cancel()
+        guard isWeatherEnabled,
+              let location = WeatherLocation.resolving(
+                  settings?.settings.activeLocation ?? .defaultCity
+              )
+        else {
+            return
+        }
+
+        let keepsPrevious = (lastWeatherLocation == location)
+        var previousSnapshot: WeatherSnapshot?
+        if !keepsPrevious {
+            weatherState = .loading(previous: nil)
+        } else {
+            switch weatherState {
+            case let .loaded(snapshot, _):
+                previousSnapshot = snapshot
+                weatherState = .loading(previous: snapshot)
+            case let .loading(previous):
+                previousSnapshot = previous
+            case .idle, .failed:
+                weatherState = .loading(previous: nil)
+            }
+        }
+        lastWeatherLocation = location
+
+        let weatherService = weatherService
+        let failurePrevious = keepsPrevious ? previousSnapshot : nil
+        weatherTask = Task { [weak self] in
+            do {
+                let snapshot = try await weatherService.weather(
+                    for: location,
+                    policy: policy
+                )
+                guard !Task.isCancelled else {
+                    return
+                }
+                self?.publishWeather(
+                    .loaded(
+                        snapshot,
+                        freshness: WeatherCachePolicy.freshness(
+                            of: snapshot,
+                            at: .now
+                        )
+                    ),
+                    matching: location
+                )
+            } catch {
+                guard !Task.isCancelled else {
+                    return
+                }
+                let error = (error as? UserFacingError) ?? .offline
+                self?.publishWeather(
+                    .failed(previous: failurePrevious, error: error),
+                    matching: location
+                )
+            }
+        }
+    }
+
+    /// 迟到的旧位置结果不得覆盖新位置状态（防错配）。
+    private func publishWeather(
+        _ state: Loadable<WeatherSnapshot>,
+        matching location: WeatherLocation
+    ) {
+        guard lastWeatherLocation == location else {
+            return
+        }
+        weatherState = state
     }
 
     private func registerForSystemChanges() {

@@ -18,13 +18,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ShellActions {
         let settingsStore = SettingsStore()
         self.settingsStore = settingsStore
 
-        // 同一 HolidayService 实例供面板与设置页共享，保证缓存与
-        // 节流状态唯一（设计 18.2：单实例验证）
+        // 同一 HolidayService / WeatherService 实例供面板与设置页共享，
+        // 保证缓存与在途任务状态唯一（设计 18.2：单实例验证）
         let holidayService = HolidayService(client: HolidayClient())
+        let weatherService = WeatherService(client: OpenMeteoClient())
 
         let appModel = AppModel(
             settings: settingsStore,
-            holidayService: holidayService
+            holidayService: holidayService,
+            weatherService: weatherService
         )
         let panelController = PanelController(
             appModel: appModel,
@@ -35,7 +37,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ShellActions {
         settingsWindowController = SettingsWindowController(
             settingsStore: settingsStore,
             loginItemService: LoginItemService(),
-            holidayService: holidayService
+            holidayService: holidayService,
+            weatherService: weatherService
         )
 
         statusItemController = StatusItemController(

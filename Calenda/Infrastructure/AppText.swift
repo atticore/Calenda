@@ -231,6 +231,190 @@ enum AppText {
         )
     }
 
+    // MARK: - 天气
+
+    static let currentWeatherLabel = String(
+        localized: "weather.current_label",
+        defaultValue: "当前天气"
+    )
+
+    static let weatherAttribution = String(
+        localized: "weather.attribution",
+        defaultValue: "天气数据：Open-Meteo"
+    )
+
+    static let weatherLoading = String(
+        localized: "weather.loading",
+        defaultValue: "正在获取天气"
+    )
+
+    private static let weatherUpdatedAtFormat = String(
+        localized: "weather.updated_at",
+        defaultValue: "上次更新 %1$@"
+    )
+
+    static func weatherUpdatedAt(_ formattedTime: String) -> String {
+        String(format: weatherUpdatedAtFormat, locale: .current, formattedTime)
+    }
+
+    private static let apparentTemperatureFormat = String(
+        localized: "weather.apparent_temperature",
+        defaultValue: "体感 %1$@"
+    )
+
+    static func apparentTemperature(_ formattedTemperature: String) -> String {
+        String(
+            format: apparentTemperatureFormat,
+            locale: .current,
+            formattedTemperature
+        )
+    }
+
+    private static let defaultCityNameFormat = String(
+        localized: "weather.default_city_name",
+        defaultValue: "%1$@ · 默认城市"
+    )
+
+    static func defaultCityName(_ cityName: String) -> String {
+        String(format: defaultCityNameFormat, locale: .current, cityName)
+    }
+
+    static func weatherUnavailableText(_ error: UserFacingError) -> String {
+        switch error {
+        case .offline:
+            return String(
+                localized: "weather.error.offline",
+                defaultValue: "网络不可用，天气暂不可用"
+            )
+        case .timeout:
+            return String(
+                localized: "weather.error.timeout",
+                defaultValue: "网络超时，天气暂不可用"
+            )
+        case .rateLimited:
+            return String(
+                localized: "weather.error.rate_limited",
+                defaultValue: "请求过于频繁，请稍后重试"
+            )
+        case .serverError:
+            return String(
+                localized: "weather.error.server",
+                defaultValue: "天气服务暂时不可用"
+            )
+        case .invalidResponse:
+            return String(
+                localized: "weather.error.invalid_response",
+                defaultValue: "天气数据异常"
+            )
+        case .locationUnavailable:
+            return String(
+                localized: "weather.error.location_unavailable",
+                defaultValue: "定位不可用"
+            )
+        }
+    }
+
+    /// WMO 天气码的简体中文描述（设计 12.2）。
+    static func conditionDescription(_ condition: WeatherCondition) -> String {
+        switch condition {
+        case .clearSky:
+            return String(localized: "weather.condition.clear", defaultValue: "晴")
+        case .mainlyClear:
+            return String(localized: "weather.condition.mainly_clear", defaultValue: "大部晴朗")
+        case .partlyCloudy:
+            return String(localized: "weather.condition.partly_cloudy", defaultValue: "局部多云")
+        case .overcast:
+            return String(localized: "weather.condition.overcast", defaultValue: "阴")
+        case .fog:
+            return String(localized: "weather.condition.fog", defaultValue: "雾")
+        case .rimeFog:
+            return String(localized: "weather.condition.rime_fog", defaultValue: "冻雾")
+        case .lightDrizzle:
+            return String(localized: "weather.condition.light_drizzle", defaultValue: "小毛毛雨")
+        case .drizzle:
+            return String(localized: "weather.condition.drizzle", defaultValue: "毛毛雨")
+        case .heavyDrizzle:
+            return String(localized: "weather.condition.heavy_drizzle", defaultValue: "大毛毛雨")
+        case .lightFreezingDrizzle:
+            return String(localized: "weather.condition.light_freezing_drizzle", defaultValue: "小冻毛毛雨")
+        case .freezingDrizzle:
+            return String(localized: "weather.condition.freezing_drizzle", defaultValue: "冻毛毛雨")
+        case .lightRain:
+            return String(localized: "weather.condition.light_rain", defaultValue: "小雨")
+        case .rain:
+            return String(localized: "weather.condition.rain", defaultValue: "中雨")
+        case .heavyRain:
+            return String(localized: "weather.condition.heavy_rain", defaultValue: "大雨")
+        case .lightFreezingRain:
+            return String(localized: "weather.condition.light_freezing_rain", defaultValue: "小冻雨")
+        case .freezingRain:
+            return String(localized: "weather.condition.freezing_rain", defaultValue: "冻雨")
+        case .lightSnowfall:
+            return String(localized: "weather.condition.light_snow", defaultValue: "小雪")
+        case .snowfall:
+            return String(localized: "weather.condition.snow", defaultValue: "中雪")
+        case .heavySnowfall:
+            return String(localized: "weather.condition.heavy_snow", defaultValue: "大雪")
+        case .snowGrains:
+            return String(localized: "weather.condition.snow_grains", defaultValue: "雪粒")
+        case .lightRainShowers:
+            return String(localized: "weather.condition.light_rain_showers", defaultValue: "小阵雨")
+        case .rainShowers:
+            return String(localized: "weather.condition.rain_showers", defaultValue: "阵雨")
+        case .heavyRainShowers:
+            return String(localized: "weather.condition.heavy_rain_showers", defaultValue: "强阵雨")
+        case .lightSnowShowers:
+            return String(localized: "weather.condition.light_snow_showers", defaultValue: "小阵雪")
+        case .heavySnowShowers:
+            return String(localized: "weather.condition.heavy_snow_showers", defaultValue: "大阵雪")
+        case .thunderstorm:
+            return String(localized: "weather.condition.thunderstorm", defaultValue: "雷雨")
+        case .thunderstormWithLightHail:
+            return String(localized: "weather.condition.thunderstorm_light_hail", defaultValue: "雷雨伴小冰雹")
+        case .thunderstormWithHeavyHail:
+            return String(localized: "weather.condition.thunderstorm_heavy_hail", defaultValue: "雷雨伴大冰雹")
+        case .unknown:
+            return String(localized: "weather.condition.unknown", defaultValue: "未知天气")
+        }
+    }
+
+    static let settingsWeatherSection = String(
+        localized: "settings.section.weather",
+        defaultValue: "天气"
+    )
+
+    static let settingsWeatherEnabled = String(
+        localized: "settings.weather_enabled",
+        defaultValue: "启用天气"
+    )
+
+    static let settingsTemperatureUnit = String(
+        localized: "settings.temperature_unit",
+        defaultValue: "温度单位"
+    )
+
+    static let temperatureUnitCelsius = String(
+        localized: "settings.unit.celsius",
+        defaultValue: "摄氏度"
+    )
+
+    static let temperatureUnitFahrenheit = String(
+        localized: "settings.unit.fahrenheit",
+        defaultValue: "华氏度"
+    )
+
+    static let refreshWeather = String(
+        localized: "settings.refresh_weather",
+        defaultValue: "刷新天气"
+    )
+
+    static let weatherRefreshFailed = String(
+        localized: "settings.weather_refresh_failed",
+        defaultValue: "刷新失败，请稍后重试"
+    )
+
+    // MARK: - 节假日设置
+
     static let settingsChineseHolidays = String(
         localized: "settings.chinese_holidays",
         defaultValue: "启用中国法定节假日"

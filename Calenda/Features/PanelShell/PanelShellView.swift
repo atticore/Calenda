@@ -170,6 +170,12 @@ struct PanelShellView: View {
                     )
                     .foregroundStyle(holidayMark.isOffDay ? .red : .secondary)
                 }
+                if model.isWeatherEnabled {
+                    WeatherStatusView(
+                        state: model.weatherState,
+                        unit: model.temperatureUnit
+                    )
+                }
                 Spacer()
                 Image(systemName: Presentation.calendarSymbol)
                     .font(.largeTitle)

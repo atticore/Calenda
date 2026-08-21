@@ -23,6 +23,7 @@ final class HolidayStubProtocol: URLProtocol {
     // 的 .serialized 进一步保证。
     private nonisolated(unsafe) static var stubsByHost: [String: Stub] = [:]
     private nonisolated(unsafe) static var requestedHosts: [String] = []
+    private nonisolated(unsafe) static var lastRequestedURLString: String?
 
     static func stub(
         host: String,
@@ -43,11 +44,16 @@ final class HolidayStubProtocol: URLProtocol {
         lock.withLock {
             stubsByHost = [:]
             requestedHosts = []
+            lastRequestedURLString = nil
         }
     }
 
     static var hostsRequested: [String] {
         lock.withLock { requestedHosts }
+    }
+
+    static var lastRequestedURL: String? {
+        lock.withLock { lastRequestedURLString }
     }
 
     override class func canInit(with request: URLRequest) -> Bool {
@@ -68,6 +74,7 @@ final class HolidayStubProtocol: URLProtocol {
         }
         Self.lock.withLock {
             Self.requestedHosts.append(host)
+            Self.lastRequestedURLString = url.absoluteString
         }
         let stub = Self.lock.withLock { Self.stubsByHost[host] }
         guard let stub else {

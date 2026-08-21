@@ -171,23 +171,5 @@ nonisolated final class HolidayClient: HolidayFetching, Sendable {
     }
 }
 
-/// 重定向逐跳校验（设计 10.4）：目标必须仍是受信任 HTTPS 主机，
-/// 否则取消该请求。
-private final class TrustedRedirectGuard: NSObject, URLSessionDataDelegate, Sendable {
-    func urlSession(
-        _ session: URLSession,
-        task: URLSessionTask,
-        willPerformHTTPRedirection response: HTTPURLResponse,
-        newRequest request: URLRequest,
-        completionHandler: @escaping (URLRequest?) -> Void
-    ) {
-        guard
-            let url = request.url,
-            NetworkPolicy.isTrusted(url)
-        else {
-            completionHandler(nil)
-            return
-        }
-        completionHandler(request)
-    }
-}
+/// 重定向守卫见 NetworkPolicy.TrustedRedirectGuard（网络客户端共用）。
+

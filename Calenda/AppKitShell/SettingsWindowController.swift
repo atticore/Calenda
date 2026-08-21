@@ -24,13 +24,15 @@ final class SettingsWindowController {
     init(
         settingsStore: SettingsStore,
         loginItemService: LoginItemService,
-        holidayService: HolidayService
+        holidayService: HolidayService,
+        weatherService: WeatherService
     ) {
         hostingView = NSHostingView(
             rootView: SettingsRootView(
                 store: settingsStore,
                 loginItemService: loginItemService,
-                holidayService: holidayService
+                holidayService: holidayService,
+                weatherService: weatherService
             )
         )
     }

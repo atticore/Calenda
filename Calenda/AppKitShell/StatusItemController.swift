@@ -40,6 +40,7 @@ final class StatusItemController {
         configureStatusButton()
         registerForSystemChanges()
         refresh()
+        scheduleUITestPanelOpeningIfRequested()
     }
 
     isolated deinit {
@@ -114,6 +115,28 @@ final class StatusItemController {
             showContextMenu(for: sender)
         } else {
             panelController?.togglePanel(relativeTo: sender)
+        }
+    }
+
+    /// UI 测试注入（设计 18.2）：副屏位于主屏上方时菜单栏项
+    /// 无法命中、事件合成的负坐标点击会丢失，测试借环境变量
+    /// 走与左键相同的开面板路径，保持其余断言真实。
+    private func scheduleUITestPanelOpeningIfRequested() {
+        guard ProcessInfo.processInfo.environment[
+            "CALENDA_UI_TEST_OPEN_PANEL"
+        ] == "1" else {
+            return
+        }
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(300))
+            guard let button = self?.statusItem.button else {
+                return
+            }
+            // 真实点击由 AppKit 激活应用；无障碍工具无法从外部
+            // 激活后台型（accessory）应用，这里补齐同样的前置条件，
+            // 使面板成为 key 窗口、Escape 等键盘路径与真实路径一致。
+            NSApp.activate()
+            self?.panelController?.togglePanel(relativeTo: button)
         }
     }
 

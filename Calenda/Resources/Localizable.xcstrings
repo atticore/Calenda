@@ -321,6 +321,16 @@
         }
       }
     },
+    "settings.refresh_weather": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刷新天气"
+          }
+        }
+      }
+    },
     "settings.section.general": {
       "localizations": {
         "zh-Hans": {
@@ -351,6 +361,16 @@
         }
       }
     },
+    "settings.section.weather": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "天气"
+          }
+        }
+      }
+    },
     "settings.shows_lunar": {
       "localizations": {
         "zh-Hans": {
@@ -371,12 +391,62 @@
         }
       }
     },
+    "settings.temperature_unit": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "温度单位"
+          }
+        }
+      }
+    },
     "settings.title": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "设置"
+          }
+        }
+      }
+    },
+    "settings.unit.celsius": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "摄氏度"
+          }
+        }
+      }
+    },
+    "settings.unit.fahrenheit": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "华氏度"
+          }
+        }
+      }
+    },
+    "settings.weather_enabled": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启用天气"
+          }
+        }
+      }
+    },
+    "settings.weather_refresh_failed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刷新失败，请稍后重试"
           }
         }
       }
@@ -437,6 +507,416 @@
           "stringUnit": {
             "state": "translated",
             "value": "退出"
+          }
+        }
+      }
+    },
+    "weather.apparent_temperature": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "体感 %1$@"
+          }
+        }
+      }
+    },
+    "weather.attribution": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "天气数据：Open-Meteo"
+          }
+        }
+      }
+    },
+    "weather.condition.clear": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "晴"
+          }
+        }
+      }
+    },
+    "weather.condition.drizzle": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "毛毛雨"
+          }
+        }
+      }
+    },
+    "weather.condition.fog": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "雾"
+          }
+        }
+      }
+    },
+    "weather.condition.freezing_drizzle": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "冻毛毛雨"
+          }
+        }
+      }
+    },
+    "weather.condition.freezing_rain": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "冻雨"
+          }
+        }
+      }
+    },
+    "weather.condition.heavy_drizzle": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大毛毛雨"
+          }
+        }
+      }
+    },
+    "weather.condition.heavy_rain": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大雨"
+          }
+        }
+      }
+    },
+    "weather.condition.heavy_rain_showers": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "强阵雨"
+          }
+        }
+      }
+    },
+    "weather.condition.heavy_snow": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大雪"
+          }
+        }
+      }
+    },
+    "weather.condition.heavy_snow_showers": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大阵雪"
+          }
+        }
+      }
+    },
+    "weather.condition.light_drizzle": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "小毛毛雨"
+          }
+        }
+      }
+    },
+    "weather.condition.light_freezing_drizzle": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "小冻毛毛雨"
+          }
+        }
+      }
+    },
+    "weather.condition.light_freezing_rain": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "小冻雨"
+          }
+        }
+      }
+    },
+    "weather.condition.light_rain": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "小雨"
+          }
+        }
+      }
+    },
+    "weather.condition.light_rain_showers": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "小阵雨"
+          }
+        }
+      }
+    },
+    "weather.condition.light_snow": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "小雪"
+          }
+        }
+      }
+    },
+    "weather.condition.light_snow_showers": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "小阵雪"
+          }
+        }
+      }
+    },
+    "weather.condition.mainly_clear": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大部晴朗"
+          }
+        }
+      }
+    },
+    "weather.condition.overcast": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "阴"
+          }
+        }
+      }
+    },
+    "weather.condition.partly_cloudy": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "局部多云"
+          }
+        }
+      }
+    },
+    "weather.condition.rain": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中雨"
+          }
+        }
+      }
+    },
+    "weather.condition.rain_showers": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "阵雨"
+          }
+        }
+      }
+    },
+    "weather.condition.rime_fog": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "冻雾"
+          }
+        }
+      }
+    },
+    "weather.condition.snow": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中雪"
+          }
+        }
+      }
+    },
+    "weather.condition.snow_grains": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "雪粒"
+          }
+        }
+      }
+    },
+    "weather.condition.thunderstorm": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "雷雨"
+          }
+        }
+      }
+    },
+    "weather.condition.thunderstorm_heavy_hail": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "雷雨伴大冰雹"
+          }
+        }
+      }
+    },
+    "weather.condition.thunderstorm_light_hail": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "雷雨伴小冰雹"
+          }
+        }
+      }
+    },
+    "weather.condition.unknown": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未知天气"
+          }
+        }
+      }
+    },
+    "weather.current_label": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前天气"
+          }
+        }
+      }
+    },
+    "weather.default_city_name": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · 默认城市"
+          }
+        }
+      }
+    },
+    "weather.error.invalid_response": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "天气数据异常"
+          }
+        }
+      }
+    },
+    "weather.error.location_unavailable": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "定位不可用"
+          }
+        }
+      }
+    },
+    "weather.error.offline": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "网络不可用，天气暂不可用"
+          }
+        }
+      }
+    },
+    "weather.error.rate_limited": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请求过于频繁，请稍后重试"
+          }
+        }
+      }
+    },
+    "weather.error.server": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "天气服务暂时不可用"
+          }
+        }
+      }
+    },
+    "weather.error.timeout": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "网络超时，天气暂不可用"
+          }
+        }
+      }
+    },
+    "weather.loading": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在获取天气"
+          }
+        }
+      }
+    },
+    "weather.updated_at": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上次更新 %1$@"
           }
         }
       }

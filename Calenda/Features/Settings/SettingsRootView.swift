@@ -14,24 +14,30 @@ struct SettingsRootView: View {
     private let store: SettingsStore
     private let loginItemService: LoginItemService
     private let holidayService: HolidayService
+    private let weatherService: WeatherService
     @State private var loginState: LoginItemState = .notRegistered
     @State private var loginItemErrorText: String?
     @State private var holidaySummaryTexts: [String] = []
     @State private var isCheckingHolidayUpdates = false
+    @State private var weatherStatusText: String?
+    @State private var isRefreshingWeather = false
 
     init(
         store: SettingsStore,
         loginItemService: LoginItemService,
-        holidayService: HolidayService
+        holidayService: HolidayService,
+        weatherService: WeatherService
     ) {
         self.store = store
         self.loginItemService = loginItemService
         self.holidayService = holidayService
+        self.weatherService = weatherService
     }
 
     var body: some View {
         Form {
             generalSection
+            weatherSection
             holidaySection
             startupSection
         }
@@ -64,6 +70,73 @@ struct SettingsRootView: View {
                     .tag(MenuBarStyle.iconAndDate)
             }
             .pickerStyle(.segmented)
+        }
+    }
+
+    private var weatherSection: some View {
+        Section(AppText.settingsWeatherSection) {
+            Toggle(
+                AppText.settingsWeatherEnabled,
+                isOn: isWeatherEnabledBinding
+            )
+
+            Picker(
+                AppText.settingsTemperatureUnit,
+                selection: temperatureUnitBinding
+            ) {
+                Text(AppText.temperatureUnitCelsius)
+                    .tag(TemperatureUnit.celsius)
+                Text(AppText.temperatureUnitFahrenheit)
+                    .tag(TemperatureUnit.fahrenheit)
+            }
+            .pickerStyle(.segmented)
+
+            HStack {
+                Button(AppText.refreshWeather) {
+                    refreshWeather()
+                }
+                .disabled(isRefreshingWeather)
+                if isRefreshingWeather {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+                Spacer()
+            }
+
+            if let weatherStatusText {
+                Text(weatherStatusText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    /// 手动刷新当前城市的天气（设计 12.3：城市改变、手动刷新允许）。
+    private func refreshWeather() {
+        guard
+            let location = WeatherLocation.resolving(
+                store.settings.activeLocation
+            )
+        else {
+            weatherStatusText = AppText.weatherUnavailableText(
+                .locationUnavailable
+            )
+            return
+        }
+        isRefreshingWeather = true
+        let weatherService = weatherService
+        Task { @MainActor in
+            do {
+                let snapshot = try await weatherService.refresh(for: location)
+                weatherStatusText = AppText.weatherUpdatedAt(
+                    snapshot.fetchedAt.formatted(
+                        .dateTime.month().day().hour().minute()
+                    )
+                )
+            } catch {
+                weatherStatusText = AppText.weatherRefreshFailed
+            }
+            isRefreshingWeather = false
         }
     }
 
@@ -172,6 +245,24 @@ struct SettingsRootView: View {
             get: { store.settings.showsChineseHolidays },
             set: { newValue in
                 store.update { $0.showsChineseHolidays = newValue }
+            }
+        )
+    }
+
+    private var isWeatherEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { store.settings.isWeatherEnabled },
+            set: { newValue in
+                store.update { $0.isWeatherEnabled = newValue }
+            }
+        )
+    }
+
+    private var temperatureUnitBinding: Binding<TemperatureUnit> {
+        Binding(
+            get: { store.settings.temperatureUnit },
+            set: { newValue in
+                store.update { $0.temperatureUnit = newValue }
             }
         )
     }
