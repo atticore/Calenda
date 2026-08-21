@@ -5,7 +5,7 @@
 //  Created by atticore on 2026/8/19.
 //
 
-nonisolated enum WeekStartOption: Sendable {
+nonisolated enum WeekStartOption: String, Sendable {
     case system
     case monday
     case sunday
