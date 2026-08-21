@@ -1,0 +1,15 @@
+{
+  "originHash" : "f424550e3c2bc289793b23e18dd5dcc8f18bd43b9e3c929ae35e72ba743032a0",
+  "pins" : [
+    {
+      "identity" : "tyme4swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/6tail/tyme4swift",
+      "state" : {
+        "revision" : "97f6ab433571a3fc7221f07b0857b71dd819316a",
+        "version" : "1.5.0"
+      }
+    }
+  ],
+  "version" : 3
+}

@@ -6,6 +6,10 @@
 	objectVersion = 110;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		FEE1D7413037FBDD00A79D51 /* Tyme4Swift in Frameworks */ = {isa = PBXBuildFile; productRef = FE0A0001000000000000000A /* Tyme4Swift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		FEC578EB3035B033008DDEFA /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -51,6 +55,7 @@
 		FEC578DA3035B030008DDEFA /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
+				FEE1D7413037FBDD00A79D51 /* Tyme4Swift in Frameworks */,
 			);
 		};
 		FEC578E73035B033008DDEFA /* Frameworks */ = {
@@ -103,6 +108,9 @@
 				FEC578DF3035B030008DDEFA /* Calenda */,
 			);
 			name = Calenda;
+			packageProductDependencies = (
+				FE0A0001000000000000000A /* Tyme4Swift */,
+			);
 			productName = Calenda;
 			productReference = FEC578DD3035B030008DDEFA /* Calenda.app */;
 			productType = "com.apple.product-type.application";
@@ -181,6 +189,9 @@
 			);
 			mainGroup = FEC578D43035B030008DDEFA;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				FE0A0002000000000000000A /* XCRemoteSwiftPackageReference "tyme4swift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = FEC578DE3035B030008DDEFA /* Products */;
 			projectDirPath = "";
@@ -543,6 +554,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		FE0A0002000000000000000A /* XCRemoteSwiftPackageReference "tyme4swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/6tail/tyme4swift";
+			requirement = {
+				kind = exactVersion;
+				version = 1.5.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		FE0A0001000000000000000A /* Tyme4Swift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FE0A0002000000000000000A /* XCRemoteSwiftPackageReference "tyme4swift" */;
+			productName = Tyme4Swift;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = FEC578D53035B030008DDEFA /* Project object */;
 	validationLevel = 1;
