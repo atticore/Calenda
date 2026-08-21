@@ -14,6 +14,14 @@ nonisolated enum HolidayDataOrigin: Sendable, Equatable {
     case network
 }
 
+/// 设置页“数据状态”展示用的年度摘要（设计 21）。
+nonisolated struct HolidayUpdateSummary: Sendable, Equatable {
+    let year: Int
+    let availability: HolidayYearAvailability
+    let origin: HolidayDataOrigin?
+    let fetchedAt: Date?
+}
+
 nonisolated struct HolidayYearRecord: Sendable, Equatable {
     let payload: HolidayYearPayload
     let etag: String?
@@ -134,6 +142,28 @@ actor HolidayService: HolidayProviding {
             marksByDay: marksByDay,
             availabilityByYear: availabilityByYear
         )
+    }
+
+    /// 设置页手动“检查节假日更新”：受 60 秒节流保护（shouldAttempt），
+    /// 返回各请求年份的当前生效来源与可用性。
+    func checkForUpdates(years: Set<Int>) async -> [HolidayUpdateSummary] {
+        _ = await holidays(for: years, policy: .forceRefresh)
+        return years.sorted().compactMap { year in
+            if let record = bestRecord(for: year) {
+                return HolidayUpdateSummary(
+                    year: year,
+                    availability: .published,
+                    origin: record.origin,
+                    fetchedAt: record.fetchedAt
+                )
+            }
+            return HolidayUpdateSummary(
+                year: year,
+                availability: availabilityOverrides[year] ?? .unavailable,
+                origin: nil,
+                fetchedAt: nil
+            )
+        }
     }
 
     // MARK: - 本地取优（设计 10.2）

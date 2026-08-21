@@ -240,4 +240,96 @@ enum AppText {
         localized: "settings.section.holidays",
         defaultValue: "节假日"
     )
+
+    static let checkHolidayUpdates = String(
+        localized: "settings.check_holiday_updates",
+        defaultValue: "检查节假日更新"
+    )
+
+    static let holidayStatusUnpublished = String(
+        localized: "holiday.status.unpublished",
+        defaultValue: "该年度法定安排尚未发布"
+    )
+
+    static let holidayStatusUnavailable = String(
+        localized: "holiday.status.unavailable",
+        defaultValue: "数据暂不可用"
+    )
+
+    static let holidayOriginBundled = String(
+        localized: "holiday.origin.bundled",
+        defaultValue: "内置快照"
+    )
+
+    static let holidayOriginDiskCache = String(
+        localized: "holiday.origin.disk_cache",
+        defaultValue: "磁盘缓存"
+    )
+
+    static let holidayOriginNetwork = String(
+        localized: "holiday.origin.network",
+        defaultValue: "网络更新"
+    )
+
+    private static let holidaySummaryPublishedFormat = String(
+        localized: "holiday.summary.published",
+        defaultValue: "%1$d 年：已发布 · %2$@ · 更新于 %3$@"
+    )
+
+    private static let holidaySummaryPublishedNoTimeFormat = String(
+        localized: "holiday.summary.published_no_time",
+        defaultValue: "%1$d 年：已发布 · %2$@"
+    )
+
+    private static let holidaySummarySimpleFormat = String(
+        localized: "holiday.summary.simple",
+        defaultValue: "%1$d 年：%2$@"
+    )
+
+    static func holidaySummary(
+        _ summary: HolidayUpdateSummary,
+        formattedUpdatedAt: (Date) -> String
+    ) -> String {
+        switch summary.availability {
+        case .published:
+            let originText: String
+            switch summary.origin {
+            case .bundled, nil:
+                originText = holidayOriginBundled
+            case .diskCache:
+                originText = holidayOriginDiskCache
+            case .network:
+                originText = holidayOriginNetwork
+            }
+            if let fetchedAt = summary.fetchedAt {
+                return String(
+                    format: holidaySummaryPublishedFormat,
+                    locale: .current,
+                    summary.year,
+                    originText,
+                    formattedUpdatedAt(fetchedAt)
+                )
+            }
+            return String(
+                format: holidaySummaryPublishedNoTimeFormat,
+                locale: .current,
+                summary.year,
+                originText
+            )
+        case .unpublished:
+            return String(
+                format: holidaySummarySimpleFormat,
+                locale: .current,
+                summary.year,
+                holidayStatusUnpublished
+            )
+        case .unavailable:
+            return String(
+                format: holidaySummarySimpleFormat,
+                locale: .current,
+                summary.year,
+                holidayStatusUnavailable
+            )
+        }
+    }
 }

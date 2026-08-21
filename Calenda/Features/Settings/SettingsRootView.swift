@@ -13,15 +13,20 @@ import SwiftUI
 struct SettingsRootView: View {
     private let store: SettingsStore
     private let loginItemService: LoginItemService
+    private let holidayService: HolidayService
     @State private var loginState: LoginItemState = .notRegistered
     @State private var loginItemErrorText: String?
+    @State private var holidaySummaryTexts: [String] = []
+    @State private var isCheckingHolidayUpdates = false
 
     init(
         store: SettingsStore,
-        loginItemService: LoginItemService
+        loginItemService: LoginItemService,
+        holidayService: HolidayService
     ) {
         self.store = store
         self.loginItemService = loginItemService
+        self.holidayService = holidayService
     }
 
     var body: some View {
@@ -68,7 +73,52 @@ struct SettingsRootView: View {
                 AppText.settingsChineseHolidays,
                 isOn: showsChineseHolidaysBinding
             )
+
+            HStack {
+                Button(AppText.checkHolidayUpdates) {
+                    checkHolidayUpdates()
+                }
+                .disabled(isCheckingHolidayUpdates)
+                if isCheckingHolidayUpdates {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
+
+            ForEach(holidaySummaryTexts, id: \.self) { summaryText in
+                Text(summaryText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
+    }
+
+    /// 手动检查节假日更新（设计 10.5）：后台执行，
+    /// 结果以“年份：状态 · 来源 · 更新时间”摘要展示。
+    private func checkHolidayUpdates() {
+        isCheckingHolidayUpdates = true
+        let years = visibleHolidayYears()
+        let holidayService = holidayService
+        Task { @MainActor in
+            let summaries = await holidayService.checkForUpdates(years: years)
+            holidaySummaryTexts = summaries.map { summary in
+                AppText.holidaySummary(summary) { fetchedAt in
+                    fetchedAt.formatted(
+                        .dateTime.month().day().hour().minute()
+                    )
+                }
+            }
+            isCheckingHolidayUpdates = false
+        }
+    }
+
+    private func visibleHolidayYears() -> Set<Int> {
+        let components = Calendar.current.dateComponents(
+            [.year],
+            from: .now
+        )
+        let currentYear = components.year ?? 2026
+        return [currentYear, currentYear + 1]
     }
 
     private var startupSection: some View {
