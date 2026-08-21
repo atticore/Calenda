@@ -1,6 +1,7 @@
 # Calenda 原生 macOS 菜单栏日历设计方案
-文档状态：Final 2.0
+文档状态：Final 2.1
 编写日期：2026-08-18
+修订日期：2026-08-20
 目标版本：MVP 1.0
 ## 1. 结论摘要
 Calenda 是一个仅驻留在 macOS 菜单栏的原生日历工具。应用采用 SwiftUI + AppKit Hybrid：AppKit 负责 NSStatusItem、NSPanel、窗口定位、焦点、多屏、Spaces 和点击外部关闭，SwiftUI 通过 NSHostingView 负责月历、详情、设置和动画内容。核心数据由本地公历计算和 Tyme4Swift 农历计算提供，并辅以中国法定节假日、调休、节气、天气和位置能力。
@@ -54,7 +55,7 @@ macOS Menu Bar：图标 + 当日数字
 │                                    │ 星期二              │
 │             月历 6 × 7             │                    │
 │                                    │        18          │
-│ 公历日 / 农历日 / 节气             │ 八月初六            │
+│ 公历日 / 农历日 / 节气             │ 七月初六            │
 │ 节日 / 休 / 班                     │ 处暑 · 还有 5 天    │
 │                                    │ ☀ 29°  北京市      │
 ├────────────────────────────────────┴────────────────────┤
@@ -76,10 +77,11 @@ macOS Menu Bar：图标 + 当日数字
 - CalendarPanel 继承 NSPanel，覆盖 canBecomeKey 为 true、canBecomeMain 为 false；styleMask 使用 borderless，不使用 nonactivatingPanel，以确保 SwiftUI 键盘焦点和输入控件可靠工作。
 - CalendarPanel 使用透明背景、系统阴影、floating 层级、isFloatingPanel 为 true、hidesOnDeactivate 为 false、isReleasedWhenClosed 为 false；关闭只执行 orderOut，窗口层级、动画行为和 collectionBehavior 全部由 PanelConfiguration 集中定义。
 - PanelController 以 hidden、showing、visible、hiding 状态机串行化切换操作，避免快速连击造成重复面板、重复动画或事件监视器残留。
-- PanelPositioner 从 status button 的屏幕坐标计算锚点，优先使用 button.window.screen，并把面板约束在对应 screen.visibleFrame 内；菜单栏位于不同屏幕或屏幕排列变化时重新定位。
+- PanelPositioner 从 status button 的屏幕坐标计算锚点，优先使用 button.window.screen，并把面板约束在对应 screen.visibleFrame 内；菜单栏位于不同屏幕或屏幕排列变化时重新定位。刘海 Mac 的刘海区域位于菜单栏内，visibleFrame 已将其排除，无需额外安全区输入。
 - 面板默认位于状态项下方并与状态项中心对齐；靠近屏幕左右边缘时水平收敛，空间不足时选择可见区域更充足的一侧，不跨越屏幕边界或刘海安全区。
 - PanelController 维护本地和全局鼠标事件监视器：点击面板外部、按 Escape、再次点击状态项或应用退出时关闭；关闭后立即移除监视器，避免泄漏和重复回调。
-- 全局鼠标监视不可用时，以 NSApplication.didResignActiveNotification 作为降级关闭路径；不得为了点击外部关闭请求辅助功能或输入监控权限。
+- 事件监视器分工为硬性规则：全局监视器只匹配鼠标事件（leftMouseDown/rightMouseDown），键盘事件（Escape、方向键）只走本地监视器；禁止用 addGlobalMonitorForEvents 匹配 keyDown 等键盘事件，不申请辅助功能或输入监控权限，不使用 CGEventTap。全局鼠标监视不需要额外系统权限，保留使用以获得确定性的关闭时机。
+- 本地鼠标监视器负责应用内其他窗口（如设置窗口）的点击；面板自身、面板子窗口与状态项所在窗口除外，状态项窗口的点击由其自身 action 分流，避免监视器抢先关闭后 mouseUp 的 toggle 把面板重新打开。NSApplication.didResignActiveNotification 作为常驻兜底：应用一旦失焦即关闭面板；不得为了点击外部关闭请求辅助功能或输入监控权限。
 - 打开面板时激活应用并调用 makeKeyAndOrderFront，把焦点交给 SwiftUI 当前选中日期；不使用跨 Space 强制抢前台的 orderFrontRegardless。关闭时只复位临时焦点和 hover 状态，保留用户浏览的月份与选中日期。
 - collectionBehavior 支持 canJoinAllSpaces、fullScreenAuxiliary 和 transient；在 Spaces、多显示器、全屏应用及菜单栏自动隐藏状态下进行实机验证。
 ### 5.4 日期格信息层级
@@ -117,11 +119,11 @@ macOS Menu Bar：图标 + 当日数字
 - 支持 VoiceOver、键盘焦点、增大对比度、减少动态效果和系统动态字体语义。
 - 颜色仅作辅助，休/班/今天/选中均有形状或文本语义。
 ### 5.9 Liquid Glass 与动画
-- NSPanel 根容器固定使用单个 NSGlassEffectView，NSHostingView 作为其 contentView；禁止把 hosting view 作为兄弟子视图叠放，也禁止再套一层全屏玻璃背景。
+- NSPanel 根容器固定使用单个 NSGlassEffectView（regular 样式），NSHostingView 作为其 contentView；禁止把 hosting view 作为兄弟子视图叠放，也禁止再套一层全屏玻璃背景。内部 SwiftUI 玻璃控件通过 GlassEffectContainer（AppKit 侧对应 NSGlassEffectContainerView）组织合并渲染，避免多层玻璃逐层叠加产生浑浊与过度绘制；macOS 的 NSGlassEffectView.Style 只有 regular 与 clear 两个成员，不存在 base 分层。
 - SwiftUI 内容区使用系统 Material 保证正文对比度，只在顶部导航、选中日期详情和关键按钮使用 glassEffect、GlassEffectContainer 与系统 glass button style；42 个日期格不逐格使用玻璃效果。
 - 月份切换使用方向一致的 SwiftUI transition，选中日期指示器使用 matchedGeometryEffect；玻璃控件的出现与消失使用 glassEffectID 和系统 glass effect transition。
 - 动画时长、弹簧参数和玻璃间距集中在 MotionTokens；禁止在 View 中散落数字常量。
-- 检测 reduceMotion 时取消位移、缩放和形变，只保留无动画状态切换；检测 reduceTransparency 时改用不透明语义背景和清晰边框。
+- 检测 reduceMotion 时取消位移、缩放和弹簧形变，只保留瞬时状态切换；reduceTransparency 优先依赖 NSGlassEffectView 与系统 Material 的原生降级响应，应用侧只对自定义背景、边框和动画补充不透明语义与清晰边框，重点是验证可读性而非重做系统行为。
 - Liquid Glass 只承担层级和交互提示，不承载低对比度正文；所有文本在浅色、深色、增加对比度和不同桌面壁纸上验证可读性。
 ## 6. 技术基线
 
@@ -152,7 +154,7 @@ macOS Menu Bar：图标 + 当日数字
 Tyme4Swift 当前提供 Swift Package，包清单使用 Swift tools 5.5，功能覆盖公历、农历、干支、生肖和节气。应用代码不直接散布 Tyme4Swift 调用，而是统一经过 LunarCalendarProviding 协议，降低升级和替换风险。
 ## 7. 总体架构
 核心原则：AppKit 管窗口和系统行为，SwiftUI 管界面和交互内容。应用入口使用 AppKit 生命周期，AppDelegate 在 MainActor 上完成依赖装配；SwiftUI 不创建主 Window scene，也不直接控制 NSPanel。UI 状态由 Observation 驱动的 AppModel 编排，远程访问和文件缓存由 actor 隔离。
-CalendaMain 使用显式 NSApplication 入口并静态强持有 AppDelegate，设置 accessory activation policy 后进入事件循环。应用不声明 SwiftUI WindowGroup、MenuBarExtra 或 Settings scene；CalendarPanel 和设置窗口都由对应 AppKit controller 创建，防止系统隐式窗口生命周期与自定义面板状态冲突。
+CalendaMain 使用显式 NSApplication 入口并静态强持有 AppDelegate，随后进入事件循环；accessory 形态由 Info.plist 的 LSUIElement 唯一声明，运行时不调用 setActivationPolicy，除非未来确需动态切换。应用不声明 SwiftUI WindowGroup、MenuBarExtra 或 Settings scene；CalendarPanel 和设置窗口都由对应 AppKit controller 创建，防止系统隐式窗口生命周期与自定义面板状态冲突。
 ```mermaid
 flowchart TD
     APP["NSApplication / AppDelegate @MainActor"] --> SIC["StatusItemController"]
@@ -186,7 +188,7 @@ flowchart TD
     LS --> CL["CoreLocation"]
 ```
 ### 7.1 分层职责
-- AppDelegate：设置 accessory activation policy，组装依赖，持有 StatusItemController、PanelController 和 SettingsWindowController 的进程级生命周期。
+- AppDelegate：组装依赖，持有 StatusItemController、PanelController 和 SettingsWindowController 的进程级生命周期；accessory 形态由 LSUIElement 声明，不在运行时设置。
 - StatusItemController：创建和更新 NSStatusItem/NSStatusBarButton，分发左键切换和右键菜单动作，处理跨日标签刷新。
 - PanelController：创建一次并复用 CalendarPanel，管理显示/隐藏、key window、焦点、事件监视器、动画和 SwiftUI 根视图生命周期。
 - PanelPositioner：只负责几何计算；输入状态项锚点、面板尺寸和屏幕可见区域，输出面板 frame，便于无 UI 单元测试。
@@ -194,7 +196,7 @@ flowchart TD
 - SettingsWindowController：创建一次并复用普通 NSWindow，通过 NSHostingView 承载 SettingsRootView；打开时关闭主面板并激活设置窗口。
 - NSHostingView：仅作为 AppKit 与 SwiftUI 的桥接边界，不持有业务逻辑。
 - SwiftUI View：只负责渲染、hover、focus、动画、可访问性和发送用户意图，不发网络请求、不读写文件、不直接操作 NSWindow。
-- AppModel：使用 @Observable、@MainActor，维护 displayedMonth、selectedDay、today、weatherState、holidayState 和 permissionState；处理界面意图。
+- AppModel：使用 @Observable、@MainActor，维护 displayedMonth、selectedDay、today、weatherState、holidayState 和 permissionState；处理界面意图。内部按域分组为子状态（如 CalendarState 包含 today、selectedDay、displayedMonth 与 cells，WeatherState、HolidayState 同理），保持单一 AppModel，不提前拆分多个 ViewModel，也避免 Phase 3 后膨胀为大量扁平字段。
 - CalendarService：生成稳定的 6 × 7 月历模型，执行日期移动、月份边界和本地化星期计算。
 - LunarService actor：批量把一组 CalendarDayID 转为农历、节气、干支等应用模型，串行隔离 Tyme4Swift，并隐藏第三方类型。
 - HolidayService actor：读取内置快照、缓存与远端数据，完成校验、合并、回退、任务合并和原子更新。
@@ -209,7 +211,7 @@ flowchart TD
 - actor service 不持有 View 或 AppKit controller；结果通过 await 返回，由 MainActor 上的 AppModel 原子发布。
 - SettingsWindowController 与 PanelController 通过 ShellActions 协议互相协调，不直接互相强引用；AppDelegate 负责路由以避免引用环。
 - AppDelegate、所有 AppKit controller、AppModel、SettingsStore 和 LocationService 明确隔离到 MainActor；HolidayService、WeatherService、缓存和网络客户端采用 actor 或不可变 Sendable 值。
-- Tyme4Swift 只在适配层以 @preconcurrency import 引入，第三方对象不得跨 actor 边界；Swift 6 Strict Concurrency 告警按错误处理，不通过 unchecked Sendable 掩盖问题。
+- Tyme4Swift 仅在适配层引入：先使用普通 import 在 Swift 6 严格并发下编译，仅当第三方旧模块的并发标注确实无法在 actor 隔离内解决时，才降级为 @preconcurrency import，且只允许出现在 TymeLunarAdapter 一处；Feature、Domain、Services 与 App 层禁止 import Tyme4Swift，可用 CI 脚本检查该约束。第三方对象不得跨 actor 边界；Swift 6 Strict Concurrency 告警按错误处理，不通过 unchecked Sendable 掩盖问题。
 ### 7.3 关键协议
 ```swift
 protocol LunarCalendarProviding: Sendable {
@@ -274,17 +276,16 @@ DayBadge 使用 enum 表达 holiday、solarTerm、lunarFestival 和 lunarDay，�
 - 对库抛出的异常或超出支持范围日期显示“农历不可用”，不得影响公历。
 - 建立固定样例测试，覆盖春节、闰月、清明、冬至、跨年和已知节气时刻。
 - Tyme4Swift 本身也包含法定假日能力，但本项目不将其作为法定调休权威源，避免与 holiday-cn 双源冲突；调休统一由 HolidayService 提供。
-- Tyme4Swift 仅在适配层通过 @preconcurrency import 引入，其类型和对象不跨 actor 边界；依赖升级必须通过固定金样例，禁止把第三方类型标为 @unchecked Sendable。
+- Tyme4Swift 仅在适配层引入（默认普通 import，必要时才在适配层内降级为 @preconcurrency，规则见 7.2），其类型和对象不跨 actor 边界；依赖升级必须通过固定金样例，禁止把第三方类型标为 @unchecked Sendable。
 ## 10. 中国节假日数据设计
 ### 10.1 数据来源
 采用 holiday-cn 的年度 JSON。记录包含 year、papers，以及由 name、date、isOffDay 组成的 days。isOffDay 为 true 表示法定休息日，为 false 表示调休工作日。
-上游说明指出，年度归属按国务院文件标题年份计算，12 月数据可能受到下一年度文件影响。因此查询某年的 12 月时必须同时加载当前年与下一年文件，并按具体日期合并，而不能只读取一个年度文件。
+上游说明指出，年度归属按国务院文件标题年份计算，12 月数据可能受到下一年度文件影响。因此查询某年的 12 月时必须同时加载当前年与下一年文件，并按具体日期合并：同日期记录内容一致时去重；内容冲突时以下一年度文件为准（higher sourceYear wins）并通过 Logger 记录 override——加载下一年文件的目的正是覆盖由次年公告确定的年末安排。
 ### 10.2 数据可用性分层
-优先级从高到低：
-1. 已通过完整校验的最新磁盘缓存。
-2. App Bundle 内置的发布时快照。
-3. 仅依赖周末规则的基础日历降级。
-远端请求只用于更新，不作为首次渲染前置条件。安装包至少内置发布年份的上年、当年和次年数据；快照以普通资源提交到 Git，发布维护脚本显式更新并校验，普通构建和测试不得临时联网下载，以保证离线与可复现构建。
+数据选择规则：
+1. 内置快照与已通过完整校验的磁盘缓存互为有效候选，HolidayService 比较二者新旧与可信度后取优——内置快照携带 generatedAt 与 repositoryRevision 元数据，磁盘缓存携带 fetchedAt 等字段（见 10.4）；不把存储介质当作优先级，避免应用升级后旧缓存压制新内置数据。
+2. 两者皆缺失或无效时，降级为仅依赖周末规则的基础日历。
+远端请求只用于更新，不作为首次渲染前置条件。安装包内置发布时已经公布的上年与当年数据，次年数据公布后随版本更新内置，尚未公布的年份按 10.6 的空状态处理；快照以普通资源提交到 Git，发布维护脚本显式更新并校验，普通构建和测试不得临时联网下载，以保证离线与可复现构建。
 ### 10.3 受信任镜像链
 按顺序尝试以下固定主机，不动态接受远程下发地址，也不默认使用未知 ghproxy：
 ```text
@@ -292,7 +293,7 @@ https://cdn.jsdelivr.net/gh/NateScarlet/holiday-cn@master/{year}.json
 https://fastly.jsdelivr.net/gh/NateScarlet/holiday-cn@master/{year}.json
 https://raw.githubusercontent.com/NateScarlet/holiday-cn/master/{year}.json
 ```
-jsDelivr 作为加速主源，Fastly jsDelivr 为第二入口，GitHub Raw 为最终源。未变化内容采用顺序回退并在首个有效响应后停止；发现新内容时要求一个 jsDelivr 入口与 GitHub Raw 的内容哈希一致，确认请求不与主请求并发，避免无意义放大流量。
+jsDelivr 作为加速主源，Fastly jsDelivr 为第二入口，GitHub Raw 为最终源；按顺序回退，取得首个通过完整领域校验的响应即接受并停止。不采用双源哈希共识：三个源镜像同一个 holiday-cn 仓库，不构成独立权威，防不住上游自身被错误更新；而 jsDelivr 对 GitHub 内容有数小时级缓存，新公告发布后两端哈希必然不一致，共识只会推迟更新到达。
 ### 10.4 下载与校验
 - URLSession 请求超时常量：资源 12 秒，请求 8 秒；具体值集中在 NetworkPolicy，不散落魔法数字。
 - 支持 ETag 和 Last-Modified，并发送 If-None-Match/If-Modified-Since。
@@ -301,10 +302,10 @@ jsDelivr 作为加速主源，Fastly jsDelivr 为第二入口，GitHub Raw 为�
 - papers 只作为来源元数据展示，不在后台自动打开。
 - 有效文件先写临时文件，再以原子替换方式更新；校验失败绝不覆盖最后一次有效缓存。
 - 缓存保存 payload、sourceURL、etag、lastModified、fetchedAt 和内容 SHA-256。
-- 当远端内容相对最后有效版本发生变化时，必须由一个 jsDelivr 入口与 GitHub Raw 返回相同内容哈希后才更新本地缓存；两端不一致或确认源不可用时保留旧数据并延后重试。
+- 任一镜像源返回的内容通过全部领域校验即可被接受并写入缓存；校验失败或响应异常时回退到下一源，全部失败时保留最后一次有效数据并延后重试。
 - papers 中的公告链接只接受 gov.cn HTTPS 地址；该校验与双源哈希用于降低传输或镜像异常风险，但不替代发布前人工核对国务院公告。
 - URLSession 重定向代理检查每一跳，目标必须仍是受信任 HTTPS 主机；使用无持久 Cookie、无凭据的会话配置。
-- SHA-256 只用于内容标识和缓存诊断，不宣称提供上游真实性证明；界面和 README 明确该数据为便利信息，以国务院公告为准。
+- SHA-256 只用于内容变更检测、缓存版本比较和诊断日志，不宣称提供上游真实性证明；界面和 README 明确该数据为便利信息，以国务院公告为准。
 ### 10.5 刷新策略
 - 弹窗打开时读取本地数据并立即渲染。
 - 加载年份由当前 42 个可见日期动态计算，而不是只取 displayedMonth.year；显示 12 月或跨年网格时额外检查下一年度文件并按具体日期去重合并。
@@ -312,12 +313,19 @@ jsDelivr 作为加速主源，Fastly jsDelivr 为第二入口，GitHub Raw 为�
 - 每年 10 月至次年 1 月可将次年数据检查间隔缩短为 6 小时，以较快获得国务院新公告；所有间隔为命名常量。
 - 失败后使用带抖动的指数退避，最多在三个固定源各尝试一次；本次弹窗生命周期内不重复轰炸。
 - 用户可在设置中手动“检查节假日更新”，但仍受最短 60 秒节流保护。
-### 10.6 降级展示
-- 有缓存：正常展示，并在设置中显示更新时间。
-- 只有内置快照：正常展示，状态为“使用内置数据”。
-- 请求年份尚未发布：不显示休/班，提示“该年度法定安排尚未发布”。
-- 数据损坏或全源失败：继续使用最后一次有效数据；没有任何数据时仅显示周末，不把周末标成法定假日。
-- 用户浏览到未内置且上游不存在的年份时，将“该年度法定安排尚未发布”作为正常空状态，不显示网络错误横幅。
+### 10.6 年度可用性与降级展示
+节假日数据以三态领域模型表达年份可用性，不把 HTTP 状态码或空 JSON 直接当作领域语义：
+```swift
+enum HolidayYearAvailability: Sendable {
+    case published
+    case unpublished
+    case unavailable
+}
+```
+- published：该年度有正式安排，正常展示休/班。
+- unpublished：数据源正常但官方安排尚未发布——未来年份三个源均返回 404，或返回 days 为空的合法 JSON；不显示休/班，提示“该年度法定安排尚未发布”，作为正常空状态呈现，不显示网络错误横幅。
+- unavailable：网络、解析或校验失败；当前或过去年份出现 404 也归入此列。继续使用最后一次有效数据，没有任何数据时仅显示周末，不把周末标成法定假日。
+- 设置页展示当前生效来源（内置快照或磁盘缓存中更新者）与更新时间，状态文案区分“尚未发布”与“数据暂不可用”。
 ## 11. 位置设计
 ### 11.1 权限策略
 - 首次启动不主动弹出权限框。用户点击天气区域的“使用当前位置”后再请求权限。
@@ -333,7 +341,7 @@ jsDelivr 作为加速主源，Fastly jsDelivr 为第二入口，GitHub Raw 为�
 - 使用当前位置解析城市名时会调用系统地理编码能力；隐私说明同时披露系统位置服务和 Open-Meteo 会参与处理位置数据。
 ### 11.3 手动城市
 - 默认城市为“北京市”，首次天气卡片明确显示“北京 · 默认城市”，用户可以直接更换或切换到当前位置。
-- 城市搜索调用 Open-Meteo Geocoding API，输入至少 2 个字符并做 350 ms 防抖；这些阈值集中在 LocationSearchPolicy。
+- 城市搜索调用 Open-Meteo Geocoding API，显式携带 language=zh 并设定 count 与 format，不依赖服务端默认语言；输入至少 2 个字符并做 350 ms 防抖，这些阈值集中在 LocationSearchPolicy。
 - 保存稳定字段：name、admin1、countryCode、latitude、longitude、timezone，显示名称由结构化字段拼接。
 - 同名城市的搜索结果必须显示行政区和国家；支持键盘选择、无结果、限流与离线状态。
 - SettingsStore 分别保存 activeLocation 和 lastManualLocation。当前位置失效或权限被撤销时保留最后成功天气，但不静默切换城市；界面要求用户选择手动城市。
@@ -347,7 +355,18 @@ longitude={lon}
 current=temperature_2m,apparent_temperature,weather_code,is_day
 timezone=auto
 ```
-使用 URLComponents 构造 URL，禁止手工拼接用户输入。WeatherClient 将传输 DTO 转换为内部 WeatherSnapshot，View 不依赖上游 JSON 字段。
+使用 URLComponents 构造 URL，禁止手工拼接用户输入。WeatherClient 将传输 DTO 转换为内部 WeatherSnapshot，View 不依赖上游 JSON 字段。location 内聚在快照类型内，城市与天气只能作为单一快照原子发布，从类型层面杜绝新城市名称搭配旧城市天气：
+```swift
+struct WeatherSnapshot: Sendable {
+    let location: WeatherLocation
+    let condition: WeatherCondition
+    let temperatureCelsius: Double
+    let apparentTemperatureCelsius: Double
+    let isDay: Bool
+    let observedAt: Date
+    let fetchedAt: Date
+}
+```
 - 日历日期与顶部时钟始终使用 Mac 系统时区；城市时区只用于解释天气响应和展示天气更新时间，不能改变月历中的“今天”。
 - 天气始终代表所选城市的当前天气，不随月历选中日期变化。
 - 网络层统一请求摄氏度，华氏度由本地纯函数转换，切换单位不触发新请求。
@@ -476,7 +495,15 @@ struct AppSettings: Equatable, Sendable {
 - Logger 中的坐标、城市查询词、具体路径和错误响应体使用 private 或 sensitive 隐私标记。
 - 不记录完整远端 JSON，不执行远端脚本，不加载远端 HTML。
 - 第三方依赖锁定到经过验证的精确 tag 或 commit，并提交 Package.resolved；升级依赖必须通过农历基准测试。
-- 即使通过 GitHub Release 而非 Mac App Store 分发，也默认启用 App Sandbox，只授予出站网络和位置功能所需 entitlement；不申请入站网络、通讯录、日历或文件系统广泛权限。
+- 即使通过 GitHub Release 而非 Mac App Store 分发，也默认启用 App Sandbox，entitlement 精确定为：
+
+```text
+com.apple.security.app-sandbox = true
+com.apple.security.network.client = true
+com.apple.security.personal-information.location = true（Phase 3 引入定位时）
+```
+
+  Info.plist 提供位置用途说明（仅用于查询本地天气）；明确不申请 network.server、通讯录、日历、文件系统广泛访问、辅助功能（Accessibility）与输入监控（Input Monitoring）。
 - 提供“清除缓存与位置”入口；清理只针对解析后的明确 Application Support 子目录，不使用宽泛路径或通配符。
 - 不做 TLS 证书固定，避免正常证书轮换导致全量故障；依赖系统信任链、固定 HTTPS 主机、重定向白名单和严格数据校验。
 ### 16.1 开源与第三方许可
@@ -569,8 +596,9 @@ Calenda/
 - CalendarService：每月恒定 42 格、周一起始、跨年、闰年、2 月、DST、时区变化和非当前月日期。
 - CalendarDayID：Date 转换往返、无效日期拒绝、上海与洛杉矶时区边界。
 - Tyme 适配：春节、端午、中秋、闰月、清明、冬至等固定金样例。
-- Holiday 解码：有效文件、错误年份、重复日期、冲突记录、损坏 JSON、超大响应、跨年度 12 月合并。
+- Holiday 解码：有效文件、错误年份、重复日期、冲突记录、损坏 JSON、超大响应、跨年度 12 月合并与冲突覆盖（下一年度文件优先）。
 - Holiday 回退：主镜像失败、次镜像成功、三源失败保留旧数据、304 不改写缓存。
+- Holiday 年度可用性：未来年份三源 404 判定 unpublished、空 days 的合法 JSON 判定 unpublished、当前或过去年份 404 判定 unavailable。
 - Weather 解码：所有已知 WMO 分组、未知 code、字段缺失、单位和时区。
 - Weather 缓存：fresh、stale、expired、并发请求合并、位置变化取消旧请求。
 - AppModel：选日、翻月、返回今天、午夜变化和部分数据源失败。
@@ -592,7 +620,7 @@ Calenda/
 ### 18.3 UI 与可访问性测试
 - 弹窗首次打开、翻月、选日、返回今天、打开设置和退出。
 - 设置路径覆盖首周、城市搜索、当前位置拒绝、温度单位、登录项失败、恢复默认和清除缓存确认。
-- 实机覆盖多显示器、不同缩放、负坐标屏幕、Spaces、全屏应用、菜单栏自动隐藏、带刘海屏幕、快速连击状态项和点击外部关闭。
+- 实机覆盖多显示器、不同缩放、负坐标屏幕、Spaces、Stage Manager、全屏应用、菜单栏自动隐藏、带刘海屏幕、快速连击状态项和点击外部关闭。
 - 验证打开后的 key window 与默认焦点、Escape、Command + ,、右键菜单；关闭再打开后保留浏览月份和选中日期。
 - VoiceOver label、键盘遍历、浅色/深色、高对比度、减少动态效果、减少透明度、简体中文长文本与系统大文字布局。
 - Liquid Glass 在不同壁纸和窗口后景下检查对比度；减少透明度时必须切换为清晰的不透明语义背景，减少动态效果时不得出现位移和形变动画。
@@ -648,8 +676,9 @@ xcodebuild \
 - 不用模态警告打断日历查询，除非出现无法恢复的设置或文件权限问题。
 ## 22. 分阶段实施
 ### Phase 0：工程基线
-- 创建 macOS 26 AppKit 应用入口、AppDelegate、accessory activation policy、LSUIElement、App Sandbox 和共享 Scheme，启用 Swift 6 language mode 与 Strict Concurrency。
+- 创建 macOS 26 AppKit 应用入口、AppDelegate、LSUIElement（accessory 形态的唯一声明源）、App Sandbox 和共享 Scheme，启用 Swift 6 language mode 与 Strict Concurrency。
 - 完成 NSStatusItem、CalendarPanel、PanelController、PanelPositioner、OutsideClickMonitor、NSGlassEffectView 和 NSHostingView 最小闭环。
+- 最小 Shell Spike 作为阻塞验收门禁：实机验证“NSStatusItem 点击 → NSPanel 定位 → NSApp.activate → makeKeyAndOrderFront → isKeyWindow → SwiftUI 焦点 → 方向键/Escape 关闭”全链路，覆盖普通桌面、其他应用前台、全屏应用、不同 Space、Stage Manager、副显示器、菜单栏自动隐藏和刘海 Mac；该矩阵未通过前不进入完整月历 UI 开发。这是项目当前最大的技术风险项。
 - 建立 AppKitShell、Domain、Services、Infrastructure、Features 目录和测试 Target；以 Observation 构建 MainActor 上的 AppModel 与 SettingsStore。
 - 接入 Tyme4Swift，锁定版本并完成最小适配测试。
 - 建立 SettingsStore、schemaVersion、设置迁移和 SMAppService 登录项最小验证。
@@ -672,7 +701,7 @@ xcodebuild \
 - 完成 README、隐私说明、故障排查和发布检查表。
 ## 23. MVP 验收标准
 - 应用仅显示在菜单栏，不出现在 Dock 与应用切换器；NSStatusItem 左键稳定切换单实例 NSPanel，右键显示设置与退出菜单。
-- 面板在主屏、副屏、负坐标屏幕、Spaces、全屏应用、自动隐藏菜单栏和带刘海屏幕下都锚定正确且不超出 visibleFrame。
+- 面板在主屏、副屏、负坐标屏幕、Spaces、Stage Manager、全屏应用、自动隐藏菜单栏和带刘海屏幕下都锚定正确且不超出 visibleFrame。
 - 点击外部、Escape 或再次点击状态项能关闭面板；关闭后没有残留事件监视器，重新打开保留当前进程内的浏览月份和选中日期。
 - 面板可成为 key window，键盘焦点默认落在选中日期；SwiftUI 内容不直接操作窗口对象。
 - 弹窗底部和 Command + , 均能打开同一个设置窗口；重复打开不产生多个窗口。
@@ -708,7 +737,7 @@ xcodebuild \
 | 玻璃效果过度使用 | 对比度下降、GPU 过绘和动画卡顿 | 单一 AppKit 玻璃外壳、局部 SwiftUI 玻璃控件、日期格禁用玻璃、辅助功能降级 |
 | 定位引发隐私顾虑 | 用户拒绝或信任下降 | 按需申请、城市级精度、手动城市、不采集轨迹 |
 | 开源代码被商业下游使用 | 默认 Open-Meteo 公共端点可能不符合条款 | README 和许可通知明确下游责任，天气提供方可替换 |
-| Mutable master 数据源被错误更新 | 合法 JSON 仍可能包含错误安排 | 变化内容双源哈希一致、gov.cn 公告链接校验、最后有效数据和发布前人工核对 |
+| Mutable master 数据源被错误更新 | 合法 JSON 仍可能包含错误安排 | 严格领域校验、gov.cn 公告链接校验、最后有效数据保留与发布前人工核对国务院公告 |
 
 ## 25. 最终设计决策
 1. 官方版本非商业发布，并在 GitHub 开源。
@@ -737,3 +766,7 @@ xcodebuild \
 - [Open-Meteo Geocoding API](https://open-meteo.com/en/docs/geocoding-api)
 - [Open-Meteo 使用条款](https://open-meteo.com/en/terms)
 - [Open-Meteo 数据许可](https://open-meteo.com/en/license)
+
+## 27. 修订记录
+- 2.1（2026-08-20）：依据外部评审修订。采纳：NSPanel 激活/焦点链路列为 Phase 0 阻塞门禁，实机矩阵补充 Stage Manager；删除节假日双源哈希共识，改为顺序回退加严格领域校验；内置快照与磁盘缓存改为按新旧取优的候选制，加快照元数据；明确跨年度冲突以下一年度文件为准并记录日志；新增 HolidayYearAvailability 三态（含未来年 404 与空 days 的语义）；事件监视器明确“全局只鼠标、键盘只本地”；Tyme4Swift 默认普通 import，必要时才在适配层降级 @preconcurrency 并用 CI 检查泄漏；entitlement 写成精确键值并附禁用清单；Geocoding 固定 language=zh；WeatherSnapshot 内聚 location 保证原子切换；AppModel 内部按域分组；LSUIElement 成为 accessory 唯一声明源；嵌套玻璃以 GlassEffectContainer/NSGlassEffectContainerView 合并渲染（NSGlassEffectView 无 base 样式）；Reduce Transparency 以系统原生响应优先。不采纳：新增 YearMonth（CalendarMonthID 已覆盖该职责）；PanelPositioner 增加 safeAreaInsets 输入（纯函数加 visibleFrame 已覆盖，刘海位于菜单栏内）。
+- 2.0（2026-08-18）：初版定稿。

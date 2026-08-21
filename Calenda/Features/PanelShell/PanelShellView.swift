@@ -13,6 +13,11 @@ struct PanelShellView: View {
         static let calendarSymbol = "calendar"
         static let escapeKeyLabel = "Esc"
         static let localeIdentifier = "zh_Hans_CN"
+        static let firstDayOfMonth = 1
+        static let previousMonthSymbol = "chevron.left"
+        static let nextMonthSymbol = "chevron.right"
+        static let previousMonthOffset = -1
+        static let nextMonthOffset = 1
         static let headerHeight: CGFloat = 52
         static let footerHeight: CGFloat = 34
         static let detailWidth: CGFloat = 200
@@ -23,11 +28,15 @@ struct PanelShellView: View {
         static let dividerOpacity = 0.35
     }
 
-    private let date: Date
+    private let model: AppModel
     private let locale = Locale(identifier: Presentation.localeIdentifier)
+    @FocusState private var focusedDay: CalendarDayID?
+    @State private var isMonthPickerPresented = false
+    @State private var pickerYear: Int
 
-    init(date: Date = .now) {
-        self.date = date
+    init(model: AppModel) {
+        self.model = model
+        _pickerYear = State(initialValue: model.displayedMonth.year)
     }
 
     var body: some View {
@@ -39,49 +48,99 @@ struct PanelShellView: View {
             footer
         }
         .environment(\.locale, locale)
+        .onAppear {
+            synchronizeFocusedDay()
+        }
+        .onChange(of: model.isPanelVisible) { _, isPanelVisible in
+            guard isPanelVisible else {
+                return
+            }
+            synchronizeFocusedDay()
+        }
+        .onChange(of: model.selectedDay) { _, _ in
+            synchronizeFocusedDay()
+        }
+        .onChange(of: model.displayedMonth) { _, _ in
+            synchronizeFocusedDay()
+        }
+    }
+
+    private var selectedDate: Date? {
+        model.referenceDate(for: model.selectedDay)
     }
 
     private var header: some View {
         HStack {
-            Text(date, format: .dateTime.year().month(.wide))
-                .font(.title2.weight(.semibold))
+            if let displayedMonthDate {
+                Button(action: openMonthPicker) {
+                    Text(displayedMonthDate, format: .dateTime.year().month(.wide))
+                        .font(.title2.weight(.semibold))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(AppText.openMonthPicker)
+                .popover(isPresented: $isMonthPickerPresented) {
+                    MonthPickerView(
+                        year: $pickerYear,
+                        displayedMonth: model.displayedMonth,
+                        dateForMonth: { date(for: $0) },
+                        selectMonth: { month in
+                            model.display(month: month)
+                            isMonthPickerPresented = false
+                        }
+                    )
+                }
+            }
             Spacer()
-            Text(Presentation.brandName)
-                .font(.headline)
-                .foregroundStyle(.secondary)
+            monthNavigation
         }
         .padding(.horizontal, Presentation.horizontalPadding)
         .frame(height: Presentation.headerHeight)
     }
 
+    private var monthNavigation: some View {
+        HStack {
+            Button(
+                action: {
+                    model.moveDisplayedMonth(by: Presentation.previousMonthOffset)
+                }
+            ) {
+                Image(systemName: Presentation.previousMonthSymbol)
+            }
+            .accessibilityLabel(AppText.previousMonth)
+
+            Button(
+                action: {
+                    model.moveDisplayedMonth(by: Presentation.nextMonthOffset)
+                }
+            ) {
+                Image(systemName: Presentation.nextMonthSymbol)
+            }
+            .accessibilityLabel(AppText.nextMonth)
+
+            Button(AppText.returnToToday, action: model.returnToToday)
+        }
+        .buttonStyle(.borderless)
+    }
+
     private var content: some View {
         HStack(spacing: .zero) {
-            VStack(spacing: Presentation.contentSpacing) {
-                Image(systemName: Presentation.calendarSymbol)
-                    .font(.system(size: Presentation.calendarSymbolSize, weight: .light))
-                    .foregroundStyle(.secondary)
-                Text(date, format: .dateTime.day())
-                    .font(
-                        .system(
-                            size: Presentation.dayFontSize,
-                            weight: .light,
-                            design: .rounded
-                        )
-                        .monospacedDigit()
-                    )
-                Text(date, format: .dateTime.weekday(.wide))
-                    .font(.title3.weight(.medium))
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            CalendarGrid(model: model, focusedDay: $focusedDay)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             Divider().opacity(Presentation.dividerOpacity)
 
             VStack(alignment: .leading, spacing: Presentation.contentSpacing) {
-                Text(date, format: .dateTime.year().month().day())
-                    .font(.title3.weight(.semibold))
-                Text(date, format: .dateTime.weekday(.wide))
-                    .foregroundStyle(.secondary)
+                if model.selectedDay == model.today {
+                    Text(model.now, format: .dateTime.hour().minute())
+                        .font(.title3.weight(.semibold))
+                        .monospacedDigit()
+                }
+                if let selectedDate {
+                    Text(selectedDate, format: .dateTime.weekday(.wide))
+                        .foregroundStyle(.secondary)
+                    Text(selectedDate, format: .dateTime.year().month().day())
+                        .font(.title3.weight(.semibold))
+                }
                 Spacer()
                 Image(systemName: Presentation.calendarSymbol)
                     .font(.largeTitle)
@@ -104,5 +163,28 @@ struct PanelShellView: View {
         }
         .padding(.horizontal, Presentation.horizontalPadding)
         .frame(height: Presentation.footerHeight)
+    }
+
+    private var displayedMonthDate: Date? {
+        date(for: model.displayedMonth)
+    }
+
+    private func synchronizeFocusedDay() {
+        focusedDay = model.focusedGridDay
+    }
+
+    private func openMonthPicker() {
+        pickerYear = model.displayedMonth.year
+        isMonthPickerPresented = true
+    }
+
+    private func date(for month: CalendarMonthID) -> Date? {
+        model.referenceDate(
+            for: CalendarDayID(
+                year: month.year,
+                month: month.month,
+                day: Presentation.firstDayOfMonth
+            )
+        )
     }
 }

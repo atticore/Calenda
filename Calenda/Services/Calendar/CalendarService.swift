@@ -25,6 +25,10 @@ nonisolated struct CalendarService: Sendable {
     private let timeZone: TimeZone
     private let systemFirstWeekday: CalendarWeekday
 
+    var configuredTimeZone: TimeZone {
+        timeZone
+    }
+
     init(
         timeZone: TimeZone = .autoupdatingCurrent,
         systemFirstWeekday: CalendarWeekday? = nil
@@ -85,6 +89,54 @@ nonisolated struct CalendarService: Sendable {
 
     func dayID(for date: Date) -> CalendarDayID {
         dayID(for: date, calendar: makeCalendar(firstWeekday: systemFirstWeekday))
+    }
+
+    func noonDate(for id: CalendarDayID) -> Date? {
+        date(for: id, calendar: makeCalendar(firstWeekday: systemFirstWeekday))
+    }
+
+    func isValid(month: CalendarMonthID) -> Bool {
+        Rule.firstMonth...Rule.lastMonth ~= month.month
+    }
+
+    func day(
+        byAdding offset: Int,
+        to day: CalendarDayID
+    ) -> CalendarDayID? {
+        let calendar = makeCalendar(firstWeekday: systemFirstWeekday)
+        guard
+            let date = date(for: day, calendar: calendar),
+            let adjustedDate = calendar.date(byAdding: .day, value: offset, to: date)
+        else {
+            return nil
+        }
+        return dayID(for: adjustedDate, calendar: calendar)
+    }
+
+    func month(
+        byAdding offset: Int,
+        to displayedMonth: CalendarMonthID
+    ) -> CalendarMonthID? {
+        guard isValid(month: displayedMonth) else {
+            return nil
+        }
+        let calendar = makeCalendar(firstWeekday: systemFirstWeekday)
+        let firstDay = CalendarDayID(
+            year: displayedMonth.year,
+            month: displayedMonth.month,
+            day: Rule.firstDayOfMonth
+        )
+        guard
+            let date = date(for: firstDay, calendar: calendar),
+            let adjustedDate = calendar.date(byAdding: .month, value: offset, to: date)
+        else {
+            return nil
+        }
+        let components = calendar.dateComponents([.year, .month], from: adjustedDate)
+        guard let year = components.year, let month = components.month else {
+            return nil
+        }
+        return CalendarMonthID(year: year, month: month)
     }
 
     private func makeCalendar(firstWeekday: CalendarWeekday) -> Calendar {

@@ -1,0 +1,11 @@
+# Xcode user state
+xcuserdata/
+*.xcuserstate
+DerivedData/
+
+# Local tool artifacts
+.mimosa/
+.review-artifacts/
+
+# macOS
+.DS_Store

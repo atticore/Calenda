@@ -16,6 +16,14 @@ struct CalendarServiceTests {
         static let february2024 = CalendarMonthID(year: 2024, month: 2)
         static let december2026 = CalendarMonthID(year: 2026, month: 12)
         static let today = CalendarDayID(year: 2026, month: 2, day: 14)
+        static let invalidDay = CalendarDayID(year: 2026, month: 2, day: 30)
+        static let december31 = CalendarDayID(year: 2026, month: 12, day: 31)
+        static let january1 = CalendarDayID(year: 2027, month: 1, day: 1)
+        static let daylightSavingStartEve = CalendarDayID(year: 2026, month: 3, day: 7)
+        static let daylightSavingStart = CalendarDayID(year: 2026, month: 3, day: 8)
+        static let daylightSavingEndEve = CalendarDayID(year: 2026, month: 10, day: 31)
+        static let daylightSavingEnd = CalendarDayID(year: 2026, month: 11, day: 1)
+        static let dayAfterDaylightSavingEnd = CalendarDayID(year: 2026, month: 11, day: 2)
         static let utc = TimeZone(secondsFromGMT: 0)!
         static let losAngeles = TimeZone(identifier: "America/Los_Angeles")!
     }
@@ -110,6 +118,52 @@ struct CalendarServiceTests {
             losAngelesService.dayID(for: instant)
                 == CalendarDayID(year: 2026, month: 8, day: 18)
         )
+    }
+
+    @Test
+    func noonDateRoundTripsThroughDayIDAtNoon() throws {
+        let service = CalendarService(timeZone: Fixture.utc)
+        let day = CalendarDayID(year: 2026, month: 8, day: 19)
+
+        let noonDate = try #require(service.noonDate(for: day))
+
+        var utcCalendar = Calendar(identifier: .gregorian)
+        utcCalendar.timeZone = Fixture.utc
+        #expect(service.dayID(for: noonDate) == day)
+        #expect(utcCalendar.component(.hour, from: noonDate) == 12)
+    }
+
+    @Test
+    func movesDaysAcrossTheYearBoundary() {
+        let service = CalendarService(timeZone: Fixture.utc)
+
+        #expect(service.day(byAdding: 1, to: Fixture.december31) == Fixture.january1)
+        #expect(service.day(byAdding: -1, to: Fixture.january1) == Fixture.december31)
+    }
+
+    @Test
+    func movesDaysAcrossDaylightSavingBoundaries() {
+        let service = CalendarService(timeZone: Fixture.losAngeles)
+
+        #expect(
+            service.day(byAdding: 1, to: Fixture.daylightSavingStartEve)
+                == Fixture.daylightSavingStart
+        )
+        #expect(
+            service.day(byAdding: 1, to: Fixture.daylightSavingEndEve)
+                == Fixture.daylightSavingEnd
+        )
+        #expect(
+            service.day(byAdding: 1, to: Fixture.daylightSavingEnd)
+                == Fixture.dayAfterDaylightSavingEnd
+        )
+    }
+
+    @Test
+    func rejectsInvalidDaysWhenMovingThem() {
+        let service = CalendarService(timeZone: Fixture.utc)
+
+        #expect(service.day(byAdding: 1, to: Fixture.invalidDay) == nil)
     }
 
     @Test

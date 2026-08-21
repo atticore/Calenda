@@ -13,5 +13,12 @@ nonisolated enum CalendarWeekday: Int, CaseIterable, Sendable {
     case thursday
     case friday
     case saturday
-}
 
+    static func ordered(startingWith firstWeekday: CalendarWeekday) -> [CalendarWeekday] {
+        let weekdays = allCases
+        guard let firstIndex = weekdays.firstIndex(of: firstWeekday) else {
+            return weekdays
+        }
+        return Array(weekdays[firstIndex...]) + Array(weekdays[..<firstIndex])
+    }
+}

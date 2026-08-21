@@ -1,6 +1,86 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
+    "%lld 年 %lld 月 %lld 日" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld 年 %2$lld 月 %3$lld 日"
+          }
+        }
+      }
+    },
+    "calendar.navigation.next_month" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下个月"
+          }
+        }
+      }
+    },
+    "calendar.navigation.previous_month" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上个月"
+          }
+        }
+      }
+    },
+    "calendar.navigation.return_to_today" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "返回今天"
+          }
+        }
+      }
+    },
+    "calendar.month_picker.next_year" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下一年"
+          }
+        }
+      }
+    },
+    "calendar.month_picker.current_displayed_month_description" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@，当前显示月份"
+          }
+        }
+      }
+    },
+    "calendar.month_picker.open" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择年月"
+          }
+        }
+      }
+    },
+    "calendar.month_picker.previous_year" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上一年"
+          }
+        }
+      }
+    },
     "menu_bar.accessibility_label" : {
       "localizations" : {
         "zh-Hans" : {

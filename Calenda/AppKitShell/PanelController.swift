@@ -10,20 +10,43 @@ import SwiftUI
 
 @MainActor
 final class PanelController: PanelControlling {
+    private enum Keyboard {
+        static let leftArrowKeyCode: UInt16 = 123
+        static let rightArrowKeyCode: UInt16 = 124
+        static let downArrowKeyCode: UInt16 = 125
+        static let upArrowKeyCode: UInt16 = 126
+        static let returnToTodayCharacter = "t"
+        static let previousDayOffset = -1
+        static let nextDayOffset = 1
+        static let previousWeekOffset = -7
+        static let nextWeekOffset = 7
+        static let previousMonthOffset = -1
+        static let nextMonthOffset = 1
+        static let monthsPerYear = 12
+        static let previousYearOffset = -monthsPerYear
+        static let nextYearOffset = monthsPerYear
+    }
+
+    private enum CalendarKeyboardCommand {
+        case moveSelectedDay(Int)
+        case moveDisplayedMonth(Int)
+        case returnToToday
+    }
+
     private let panel: CalendarPanel
     private let hostingView: NSHostingView<PanelShellView>
     private let positioner: any PanelPositioning
-    private let clock: any ClockProviding
+    private let appModel: AppModel
     private let outsideClickMonitor = OutsideClickMonitor()
     private var visibility = PanelVisibilityStateMachine()
 
     init(
         positioner: any PanelPositioning = PanelPositioner(),
-        clock: any ClockProviding = SystemClock()
+        appModel: AppModel = AppModel()
     ) {
         self.positioner = positioner
-        self.clock = clock
-        hostingView = NSHostingView(rootView: PanelShellView(date: clock.now))
+        self.appModel = appModel
+        hostingView = NSHostingView(rootView: PanelShellView(model: appModel))
         panel = CalendarPanel(hostedContentView: hostingView)
     }
 
@@ -45,6 +68,7 @@ final class PanelController: PanelControlling {
 
         outsideClickMonitor.remove()
         panel.orderOut(nil)
+        appModel.panelDidDisappear()
         visibility.finishHiding()
     }
 
@@ -60,21 +84,32 @@ final class PanelController: PanelControlling {
             return
         }
 
+        appModel.panelWillAppear()
+
         let anchorInWindow = statusButton.convert(statusButton.bounds, to: nil)
         let anchorOnScreen = statusWindow.convertToScreen(anchorInWindow)
+        let panelSize = PanelConfiguration.adaptedContentSize(
+            fittingSize: hostingView.fittingSize
+        )
         let panelFrame = positioner.frame(
             anchor: anchorOnScreen,
-            panelSize: PanelConfiguration.contentSize,
+            panelSize: panelSize,
             visibleFrame: screen.visibleFrame
         )
 
-        hostingView.rootView = PanelShellView(date: clock.now)
         panel.setFrame(panelFrame, display: false)
         NSApplication.shared.activate()
         panel.makeKeyAndOrderFront(nil)
-        outsideClickMonitor.install { [weak self] reason in
-            self?.closePanel(reason: reason)
-        }
+        outsideClickMonitor.install(
+            panel: panel,
+            anchorWindow: statusWindow,
+            closeHandler: { [weak self] reason in
+                self?.closePanel(reason: reason)
+            },
+            keyDownHandler: { [weak self] event in
+                self?.handleCalendarKeyDown(event) ?? false
+            }
+        )
         visibility.finishShowing()
     }
 
@@ -83,5 +118,53 @@ final class PanelController: PanelControlling {
             return
         }
         visibility.finishHiding()
+    }
+
+    private func handleCalendarKeyDown(_ event: NSEvent) -> Bool {
+        guard let command = calendarKeyboardCommand(for: event) else {
+            return false
+        }
+
+        switch command {
+        case let .moveSelectedDay(offset):
+            appModel.moveSelectedDay(by: offset)
+        case let .moveDisplayedMonth(offset):
+            appModel.moveDisplayedMonth(by: offset)
+        case .returnToToday:
+            appModel.returnToToday()
+        }
+        return true
+    }
+
+    private func calendarKeyboardCommand(
+        for event: NSEvent
+    ) -> CalendarKeyboardCommand? {
+        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        if modifiers == .command,
+           event.charactersIgnoringModifiers?.lowercased()
+            == Keyboard.returnToTodayCharacter {
+            return .returnToToday
+        }
+
+        switch (modifiers, event.keyCode) {
+        case ([], Keyboard.leftArrowKeyCode):
+            return .moveSelectedDay(Keyboard.previousDayOffset)
+        case ([], Keyboard.rightArrowKeyCode):
+            return .moveSelectedDay(Keyboard.nextDayOffset)
+        case ([], Keyboard.upArrowKeyCode):
+            return .moveSelectedDay(Keyboard.previousWeekOffset)
+        case ([], Keyboard.downArrowKeyCode):
+            return .moveSelectedDay(Keyboard.nextWeekOffset)
+        case (.command, Keyboard.leftArrowKeyCode):
+            return .moveDisplayedMonth(Keyboard.previousMonthOffset)
+        case (.command, Keyboard.rightArrowKeyCode):
+            return .moveDisplayedMonth(Keyboard.nextMonthOffset)
+        case (.option, Keyboard.leftArrowKeyCode):
+            return .moveDisplayedMonth(Keyboard.previousYearOffset)
+        case (.option, Keyboard.rightArrowKeyCode):
+            return .moveDisplayedMonth(Keyboard.nextYearOffset)
+        default:
+            return nil
+        }
     }
 }

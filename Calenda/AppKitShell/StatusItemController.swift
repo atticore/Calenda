@@ -18,6 +18,7 @@ final class StatusItemController {
     private let statusBar: NSStatusBar
     private let statusItem: NSStatusItem
     private var titleFormatter: MenuBarDateTitleFormatter
+    private var midnightTimer: Timer?
 
     init(
         panelController: any PanelControlling,
@@ -38,6 +39,7 @@ final class StatusItemController {
     isolated deinit {
         NotificationCenter.default.removeObserver(self)
         NSWorkspace.shared.notificationCenter.removeObserver(self)
+        midnightTimer?.invalidate()
         statusBar.removeStatusItem(statusItem)
     }
 
@@ -100,11 +102,30 @@ final class StatusItemController {
 
     @objc
     private func handleSystemDateChange(_ notification: Notification) {
-        titleFormatter = MenuBarDateTitleFormatter(calendar: .autoupdatingCurrent)
-        refresh()
+        refreshDateTitle()
     }
 
     private func refresh() {
         statusItem.button?.title = titleFormatter.string(from: clock.now)
+        scheduleMidnightTitleRefresh()
+    }
+
+    private func refreshDateTitle() {
+        titleFormatter = MenuBarDateTitleFormatter(calendar: .autoupdatingCurrent)
+        refresh()
+    }
+
+    private func scheduleMidnightTitleRefresh() {
+        midnightTimer?.invalidate()
+        guard let fireDate = TimeBoundary.nextMidnight(after: clock.now) else {
+            return
+        }
+        let timer = Timer(fire: fireDate, interval: .zero, repeats: false) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.refreshDateTitle()
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        midnightTimer = timer
     }
 }
