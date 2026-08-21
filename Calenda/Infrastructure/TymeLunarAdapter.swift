@@ -35,16 +35,20 @@ nonisolated struct TymeLunarAdapter: Sendable {
             solarTermName = nil
         }
 
+        let festivalBadge: LunarDayBadge? = lunarDay.festival
+            .map { .lunarFestival($0.getName()) }
+        let monthStartBadge: LunarDayBadge = dayName == Rule.firstDayOfMonthName
+            ? .lunarDay(monthName)
+            : .lunarDay(dayName)
+
+        // 完整优先级：节气 > 农历节日 > 农历日期；
+        // 关闭节气显示时降级为：农历节日 > 农历日期（初一显示月名）。
+        let badgeWithoutSolarTerm = festivalBadge ?? monthStartBadge
         let badge: LunarDayBadge
         if let solarTermName {
             badge = .solarTerm(solarTermName)
-        } else if let festivalName = lunarDay.festival?.getName() {
-            badge = .lunarFestival(festivalName)
-        } else if dayName == Rule.firstDayOfMonthName {
-            // 初一显示月名，其余日期显示农历日
-            badge = .lunarDay(monthName)
         } else {
-            badge = .lunarDay(dayName)
+            badge = badgeWithoutSolarTerm
         }
 
         let nextTerm = solarDay.term.next(1)
@@ -52,6 +56,7 @@ nonisolated struct TymeLunarAdapter: Sendable {
 
         return LunarDayInformation(
             badge: badge,
+            badgeWithoutSolarTerm: badgeWithoutSolarTerm,
             fullDate: "\(lunarMonth.lunarYear.sixtyCycle)年\(monthName)\(dayName)",
             solarTermName: solarTermName,
             nextSolarTerm: SolarTermCountdown(

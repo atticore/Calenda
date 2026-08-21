@@ -39,6 +39,7 @@ struct CalendarGrid: View {
                     CalendarDayCell(
                         cell: cell,
                         isSelected: cell.id == model.selectedDay,
+                        badge: model.lunarBadge(for: cell.id),
                         focusedDay: focusedDay,
                         action: { model.select(cell.id) }
                     )

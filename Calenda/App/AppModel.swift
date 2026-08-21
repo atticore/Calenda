@@ -18,10 +18,15 @@ final class AppModel {
     private(set) var displayedMonth: CalendarMonthID
     private(set) var cells: [CalendarCellModel]
     private(set) var weekStart: WeekStartOption
+    private(set) var lunarInformationByDay: [CalendarDayID: LunarDayInformation] = [:]
+    private(set) var showsLunar: Bool
+    private(set) var showsSolarTerms: Bool
 
     private let clock: any ClockProviding
     private var calendarService: CalendarService
     private let settings: (any SettingsProviding)?
+    private let lunarService: any LunarCalendarProviding
+    private var lunarTask: Task<Void, Never>?
     private(set) var isPanelVisible = false
     private var minuteTimer: Timer?
     private var midnightTimer: Timer?
@@ -30,12 +35,15 @@ final class AppModel {
 
     private enum Default {
         static let weekStart: WeekStartOption = .monday
+        static let showsLunar = true
+        static let showsSolarTerms = true
     }
 
     init(
         clock: any ClockProviding = SystemClock(),
         calendarService: CalendarService = CalendarService(),
-        settings: (any SettingsProviding)? = nil
+        settings: (any SettingsProviding)? = nil,
+        lunarService: any LunarCalendarProviding = LunarService()
     ) {
         let initialNow = clock.now
         self.clock = clock
@@ -47,7 +55,12 @@ final class AppModel {
         self.selectedDay = today
         displayedMonth = CalendarMonthID(year: today.year, month: today.month)
         weekStart = settings?.settings.weekStart ?? Default.weekStart
+        showsLunar = settings?.settings.showsLunar ?? Default.showsLunar
+        showsSolarTerms = settings?.settings.showsSolarTerms
+            ?? Default.showsSolarTerms
         self.settings = settings
+        self.lunarService = lunarService
+        lunarTask = nil
         cells = []
         rebuildCells()
         registerForSystemChanges()
@@ -55,6 +68,7 @@ final class AppModel {
     }
 
     isolated deinit {
+        lunarTask?.cancel()
         for observer in systemChangeObservers {
             NotificationCenter.default.removeObserver(observer)
         }
@@ -166,17 +180,66 @@ final class AppModel {
     }
 
     /// 设置变更即时生效（设计 13.4）：一周起始日重建 42 格与星期标题，
-    /// 保持选中日期不变。
+    /// 保持选中日期不变；农历/节气为纯显示开关，不触发重新计算。
     private func handleSettingsChange() {
         guard let settings else {
             return
         }
+        showsLunar = settings.settings.showsLunar
+        showsSolarTerms = settings.settings.showsSolarTerms
         let nextWeekStart = settings.settings.weekStart
         guard nextWeekStart != weekStart else {
             return
         }
         weekStart = nextWeekStart
         rebuildCells()
+    }
+
+    // MARK: - 农历
+
+    func lunarInformation(for day: CalendarDayID) -> LunarDayInformation? {
+        lunarInformationByDay[day]
+    }
+
+    /// 日格第二行徽标：节气受独立开关控制，关闭时在
+    /// 农历开启的前提下降级到农历节日或农历日。
+    func lunarBadge(for day: CalendarDayID) -> LunarDayBadge? {
+        guard let information = lunarInformationByDay[day] else {
+            return nil
+        }
+        if case .solarTerm = information.badge {
+            if showsSolarTerms {
+                return information.badge
+            }
+            return showsLunar ? information.badgeWithoutSolarTerm : nil
+        }
+        return showsLunar ? information.badge : nil
+    }
+
+    private func refreshLunar() {
+        let days = cells.map(\.id)
+        lunarTask?.cancel()
+        guard !days.isEmpty else {
+            lunarInformationByDay = [:]
+            return
+        }
+        let lunarService = lunarService
+        lunarTask = Task { [weak self] in
+            let snapshot = await lunarService.information(for: days)
+            guard !Task.isCancelled else {
+                return
+            }
+            self?.applyLunar(snapshot)
+        }
+    }
+
+    private func applyLunar(_ snapshot: LunarSnapshot) {
+        var informationByDay: [CalendarDayID: LunarDayInformation] = [:]
+        informationByDay.reserveCapacity(cells.count)
+        for cell in cells where snapshot.information(for: cell.id) != nil {
+            informationByDay[cell.id] = snapshot.information(for: cell.id)
+        }
+        lunarInformationByDay = informationByDay
     }
 
     private func registerForSystemChanges() {
@@ -287,5 +350,6 @@ final class AppModel {
             today: today,
             weekStart: weekStart
         )) ?? []
+        refreshLunar()
     }
 }

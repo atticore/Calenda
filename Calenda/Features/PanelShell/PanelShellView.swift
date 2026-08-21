@@ -149,6 +149,16 @@ struct PanelShellView: View {
                     Text(selectedDate, format: .dateTime.year().month().day())
                         .font(.title3.weight(.semibold))
                 }
+                if let selectedLunar = model.lunarInformation(for: model.selectedDay) {
+                    if model.showsLunar {
+                        Text(selectedLunar.fullDate)
+                            .font(.title3.weight(.semibold))
+                    }
+                    if model.showsSolarTerms {
+                        solarTermText(for: selectedLunar)
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 Spacer()
                 Image(systemName: Presentation.calendarSymbol)
                     .font(.largeTitle)
@@ -178,6 +188,20 @@ struct PanelShellView: View {
 
     private var displayedMonthDate: Date? {
         date(for: model.displayedMonth)
+    }
+
+    /// 节气当天显示节气名；非节气日显示最近的下一节气及相距天数
+    /// （设计 5.5）。
+    private func solarTermText(for lunar: LunarDayInformation) -> Text {
+        if let solarTermName = lunar.solarTermName {
+            return Text(solarTermName)
+        }
+        return Text(
+            AppText.nextSolarTermLine(
+                lunar.nextSolarTerm.name,
+                lunar.nextSolarTerm.daysRemaining
+            )
+        )
     }
 
     private func synchronizeFocusedDay() {

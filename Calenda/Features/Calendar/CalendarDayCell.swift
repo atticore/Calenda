@@ -9,8 +9,9 @@ import SwiftUI
 
 struct CalendarDayCell: View {
     private enum Appearance {
-        static let minimumHeight: CGFloat = 34
+        static let minimumHeight: CGFloat = 44
         static let cornerRadius: CGFloat = 8
+        static let badgeSpacing: CGFloat = 1
         static let todayLineWidth: CGFloat = 1
         static let focusLineWidth: CGFloat = 2
         static let selectionBackgroundOpacity = 0.18
@@ -20,30 +21,42 @@ struct CalendarDayCell: View {
 
     private let cell: CalendarCellModel
     private let isSelected: Bool
+    private let badge: LunarDayBadge?
     private let focusedDay: FocusState<CalendarDayID?>.Binding
     private let action: () -> Void
 
     init(
         cell: CalendarCellModel,
         isSelected: Bool,
+        badge: LunarDayBadge?,
         focusedDay: FocusState<CalendarDayID?>.Binding,
         action: @escaping () -> Void
     ) {
         self.cell = cell
         self.isSelected = isSelected
+        self.badge = badge
         self.focusedDay = focusedDay
         self.action = action
     }
 
     var body: some View {
         Button(action: action) {
-            Text(cell.id.day, format: .number)
-                .font(.body.weight(.medium))
-                .monospacedDigit()
-                .frame(maxWidth: .infinity, minHeight: Appearance.minimumHeight)
-                .background(selectionBackground)
-                .overlay(todayOutline)
-                .overlay(focusOutline)
+            VStack(spacing: Appearance.badgeSpacing) {
+                Text(cell.id.day, format: .number)
+                    .font(.body.weight(.medium))
+                    .monospacedDigit()
+                if let badge {
+                    // 第二行：农历日、节气或节日（设计 5.4）
+                    Text(badge.label)
+                        .font(.caption2)
+                        .lineLimit(1)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: Appearance.minimumHeight)
+            .background(selectionBackground)
+            .overlay(todayOutline)
+            .overlay(focusOutline)
         }
         .buttonStyle(.plain)
         .focused(focusedDay, equals: cell.id)

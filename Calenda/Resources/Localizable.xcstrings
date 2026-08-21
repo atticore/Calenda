@@ -81,6 +81,16 @@
         }
       }
     },
+    "lunar.next_solar_term_line" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · 还有 %2$lld 天"
+          }
+        }
+      }
+    },
     "menu_bar.accessibility_label" : {
       "localizations" : {
         "zh-Hans" : {

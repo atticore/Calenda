@@ -58,6 +58,10 @@ struct TymeLunarAdapterTests {
         )
         #expect(information?.badge == .solarTerm("清明"))
         #expect(information?.solarTermName == "清明")
+        // 关闭节气显示后降级为农历节日
+        #expect(
+            information?.badgeWithoutSolarTerm == .lunarFestival("清明节")
+        )
     }
 
     @Test

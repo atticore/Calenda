@@ -161,4 +161,20 @@ enum AppText {
         localized: "settings.login_item.registration_failed",
         defaultValue: "注册登录项失败，请重试"
     )
+
+    // MARK: - 农历
+
+    private static let nextSolarTermLineFormat = String(
+        localized: "lunar.next_solar_term_line",
+        defaultValue: "%1$@ · 还有 %2$lld 天"
+    )
+
+    static func nextSolarTermLine(_ name: String, _ daysRemaining: Int) -> String {
+        String(
+            format: nextSolarTermLineFormat,
+            locale: .current,
+            name,
+            daysRemaining
+        )
+    }
 }
