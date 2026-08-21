@@ -146,7 +146,7 @@ struct AppModelTests {
     }
 
     @Test
-    func movesTheDisplayedMonthWithoutChangingTheSelectedDay() throws {
+    func movesTheDisplayedMonthAndKeepsTheCalendarDaySelected() async throws {
         let clock = try makeClock(at: "2026-02-14T10:00:00Z")
         let model = AppModel(
             clock: clock,
@@ -154,14 +154,51 @@ struct AppModelTests {
         )
 
         model.moveDisplayedMonth(by: 1)
+        await drainUntil(
+            model.displayedMonth == CalendarMonthID(year: 2026, month: 3)
+        )
 
         #expect(model.displayedMonth == CalendarMonthID(year: 2026, month: 3))
-        #expect(model.selectedDay == CalendarDayID(year: 2026, month: 2, day: 14))
+        #expect(model.selectedDay == CalendarDayID(year: 2026, month: 3, day: 14))
         #expect(model.cells.first?.id == CalendarDayID(year: 2026, month: 2, day: 23))
     }
 
     @Test
-    func displaysAPickedMonthWithoutChangingTheSelectedDay() throws {
+    func keepsTheTwentyFirstSelectedWhenMovingFromAugustToSeptember() async throws {
+        let clock = try makeClock(at: "2026-08-21T10:00:00Z")
+        let model = AppModel(
+            clock: clock,
+            calendarService: CalendarService(timeZone: Fixture.utc)
+        )
+
+        model.moveDisplayedMonth(by: 1)
+        await drainUntil(
+            model.displayedMonth == CalendarMonthID(year: 2026, month: 9)
+        )
+
+        #expect(model.selectedDay == CalendarDayID(year: 2026, month: 9, day: 21))
+    }
+
+    @Test
+    func returningToTodayInvalidatesAnInFlightMonthPreparation() async throws {
+        let clock = try makeClock(at: "2026-08-21T10:00:00Z")
+        let model = AppModel(
+            clock: clock,
+            calendarService: CalendarService(timeZone: Fixture.utc),
+            lunarService: DelayedLunarProvider(),
+            holidayService: EmptyHolidayProvider()
+        )
+
+        model.moveDisplayedMonth(by: 1)
+        model.returnToToday()
+        await drainMainQueue()
+
+        #expect(model.displayedMonth == CalendarMonthID(year: 2026, month: 8))
+        #expect(model.selectedDay == CalendarDayID(year: 2026, month: 8, day: 21))
+    }
+
+    @Test
+    func displaysAPickedMonthAndKeepsTheCalendarDaySelected() async throws {
         let clock = try makeClock(at: "2026-02-14T10:00:00Z")
         let model = AppModel(
             clock: clock,
@@ -170,10 +207,53 @@ struct AppModelTests {
         let pickedMonth = CalendarMonthID(year: 2029, month: 11)
 
         model.display(month: pickedMonth)
+        await drainUntil(model.displayedMonth == pickedMonth)
 
         #expect(model.displayedMonth == pickedMonth)
-        #expect(model.selectedDay == CalendarDayID(year: 2026, month: 2, day: 14))
+        #expect(model.selectedDay == CalendarDayID(year: 2029, month: 11, day: 14))
         #expect(model.cells.contains { $0.id == CalendarDayID(year: 2029, month: 11, day: 1) })
+    }
+
+    @Test
+    func keepsTodayLunarInformationWhileBrowsingAnotherMonth() async throws {
+        let clock = try makeClock(at: "2026-02-14T10:00:00Z")
+        let model = AppModel(
+            clock: clock,
+            calendarService: CalendarService(timeZone: Fixture.utc),
+            lunarService: CannedLunarProvider(),
+            holidayService: EmptyHolidayProvider()
+        )
+        let browsedMonth = CalendarMonthID(year: 2029, month: 11)
+        let today = CalendarDayID(year: 2026, month: 2, day: 14)
+
+        model.display(month: browsedMonth)
+        await drainUntil(model.displayedMonth == browsedMonth)
+        await drainMainQueue()
+
+        #expect(model.lunarInformation(for: today)?.fullDate == "示例农历日期")
+    }
+
+    @Test
+    func clearsTodayLunarInformationBeforeTheNewDayRefreshCompletes() async throws {
+        let clock = try makeClock(at: "2026-08-20T23:30:00Z")
+        let model = AppModel(
+            clock: clock,
+            calendarService: CalendarService(timeZone: Fixture.utc),
+            lunarService: DelayedCannedLunarProvider(),
+            holidayService: EmptyHolidayProvider()
+        )
+        let distantMonth = CalendarMonthID(year: 2026, month: 10)
+        let previousToday = CalendarDayID(year: 2026, month: 8, day: 20)
+        let newToday = CalendarDayID(year: 2026, month: 8, day: 21)
+
+        model.display(month: distantMonth)
+        await drainUntil(model.displayedMonth == distantMonth)
+        await drainUntil(model.lunarInformation(for: previousToday) != nil)
+
+        clock.advance(to: try makeInstant("2026-08-21T00:30:00Z"))
+        model.refreshFromClock()
+
+        #expect(model.lunarInformation(for: newToday) == nil)
     }
 
     @Test
@@ -191,7 +271,7 @@ struct AppModelTests {
     }
 
     @Test
-    func keepsKeyboardFocusOnAVisibleDayWhileBrowsingAnotherMonth() throws {
+    func keepsTheSameDaySelectedWhileBrowsingAnotherMonth() async throws {
         let clock = try makeClock(at: "2026-02-14T10:00:00Z")
         let model = AppModel(
             clock: clock,
@@ -199,8 +279,11 @@ struct AppModelTests {
         )
 
         model.moveDisplayedMonth(by: 1)
+        await drainUntil(
+            model.displayedMonth == CalendarMonthID(year: 2026, month: 3)
+        )
 
-        #expect(model.selectedDay == CalendarDayID(year: 2026, month: 2, day: 14))
+        #expect(model.selectedDay == CalendarDayID(year: 2026, month: 3, day: 14))
         #expect(model.focusedGridDay == CalendarDayID(year: 2026, month: 3, day: 14))
         #expect(model.cells.contains { $0.id == model.focusedGridDay })
     }
@@ -276,7 +359,30 @@ struct AppModelTests {
     }
 
     @Test
-    func monthNavigationDirectionTracksMovement() throws {
+    func changingWeekStartInvalidatesAnInFlightMonthPreparation() async throws {
+        let suiteName = "CalendaTests.AppModel.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { UserDefaults().removePersistentDomain(forName: suiteName) }
+        let store = SettingsStore(defaults: defaults)
+        let clock = try makeClock(at: "2026-08-21T10:00:00Z")
+        let model = AppModel(
+            clock: clock,
+            calendarService: CalendarService(timeZone: Fixture.utc),
+            settings: store,
+            lunarService: DelayedLunarProvider(),
+            holidayService: EmptyHolidayProvider()
+        )
+
+        model.moveDisplayedMonth(by: 1)
+        store.update { $0.weekStart = .sunday }
+        await drainMainQueue()
+
+        #expect(model.displayedMonth == CalendarMonthID(year: 2026, month: 8))
+        #expect(model.cells.first?.id == CalendarDayID(year: 2026, month: 7, day: 26))
+    }
+
+    @Test
+    func monthNavigationDirectionTracksMovement() async throws {
         let clock = try makeClock(at: "2026-08-20T10:00:00Z")
         let model = AppModel(
             clock: clock,
@@ -284,12 +390,21 @@ struct AppModelTests {
         )
 
         model.moveDisplayedMonth(by: 1)
+        await drainUntil(
+            model.displayedMonth == CalendarMonthID(year: 2026, month: 9)
+        )
         #expect(model.monthNavigationDirection == .forward)
 
         model.moveDisplayedMonth(by: -2)
+        await drainUntil(
+            model.displayedMonth == CalendarMonthID(year: 2026, month: 7)
+        )
         #expect(model.monthNavigationDirection == .backward)
 
         model.display(month: CalendarMonthID(year: 2030, month: 1))
+        await drainUntil(
+            model.displayedMonth == CalendarMonthID(year: 2030, month: 1)
+        )
         #expect(model.monthNavigationDirection == .forward)
 
         // 方向描述“最近一次月份变化”：同月内选日不产生新的月份过渡，
@@ -486,6 +601,46 @@ private struct CannedLunarProvider: LunarCalendarProviding {
             fullDate: "示例农历日期",
             solarTermName: nil,
             nextSolarTerm: SolarTermCountdown(name: "样例节气", daysRemaining: 9)
+        )
+    }
+}
+
+private struct DelayedLunarProvider: LunarCalendarProviding {
+    private enum Delay {
+        static let seconds: TimeInterval = 0.1
+    }
+
+    func information(for days: [CalendarDayID]) async -> LunarSnapshot {
+        try? await Task.sleep(for: .seconds(Delay.seconds))
+        return LunarSnapshot()
+    }
+}
+
+private struct DelayedCannedLunarProvider: LunarCalendarProviding {
+    private enum Delay {
+        static let seconds: TimeInterval = 0.1
+    }
+
+    func information(for days: [CalendarDayID]) async -> LunarSnapshot {
+        try? await Task.sleep(for: .seconds(Delay.seconds))
+        return LunarSnapshot(
+            informationByDay: Dictionary(
+                uniqueKeysWithValues: days.map { day in
+                    (
+                        day,
+                        LunarDayInformation(
+                            badge: .lunarDay("示例"),
+                            badgeWithoutSolarTerm: .lunarDay("示例"),
+                            fullDate: "示例农历日期",
+                            solarTermName: nil,
+                            nextSolarTerm: SolarTermCountdown(
+                                name: "样例节气",
+                                daysRemaining: 9
+                            )
+                        )
+                    )
+                }
+            )
         )
     }
 }

@@ -109,6 +109,7 @@ nonisolated final class HolidayClient: HolidayFetching, Sendable {
         }
 
         var lastFailure = "无可用镜像源"
+        var allSourcesNotFound = true
         for source in Source.allCases {
             let url = source.url(for: year)
             guard NetworkPolicy.isTrusted(url) else {
@@ -135,12 +136,14 @@ nonisolated final class HolidayClient: HolidayFetching, Sendable {
                     NetworkPolicy.isTrusted(actualURL)
                 else {
                     lastFailure = "响应来源不受信任"
+                    allSourcesNotFound = false
                     continue
                 }
                 switch httpResponse.statusCode {
                 case 200:
                     guard data.count <= NetworkPolicy.maxResponseBytes else {
                         lastFailure = "响应体超过大小限制"
+                        allSourcesNotFound = false
                         continue
                     }
                     return .payload(
@@ -158,18 +161,22 @@ nonisolated final class HolidayClient: HolidayFetching, Sendable {
                     continue
                 default:
                     lastFailure = "意外状态码 \(httpResponse.statusCode)"
+                    allSourcesNotFound = false
                     continue
                 }
             } catch {
                 lastFailure = error.localizedDescription
+                allSourcesNotFound = false
                 continue
             }
         }
         // 三个源均返回 404 时按“未收录”上报，由 Service 结合
         // 年份语义判定 unpublished / unavailable（设计 10.6）。
+        if allSourcesNotFound {
+            return .notFound
+        }
         return .failed(lastFailure)
     }
 }
 
 /// 重定向守卫见 NetworkPolicy.TrustedRedirectGuard（网络客户端共用）。
-

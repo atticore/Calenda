@@ -47,6 +47,8 @@ final class CalendarPanel: NSPanel {
         isMovable = false
         animationBehavior = .utilityWindow
         collectionBehavior = PanelConfiguration.collectionBehavior
+        contentMinSize = PanelConfiguration.contentSize
+        contentMaxSize = PanelConfiguration.contentSize
     }
 
     private func installGlassContent(_ hostedContentView: NSView, frame: CGRect) {
@@ -54,6 +56,9 @@ final class CalendarPanel: NSPanel {
         glassEffectView.autoresizingMask = [.width, .height]
         glassEffectView.cornerRadius = PanelConfiguration.cornerRadius
         glassEffectView.style = .regular
+        glassEffectView.wantsLayer = true
+        glassEffectView.layer?.cornerRadius = PanelConfiguration.cornerRadius
+        glassEffectView.layer?.masksToBounds = true
 
         hostedContentView.frame = glassEffectView.bounds
         hostedContentView.autoresizingMask = [.width, .height]

@@ -28,6 +28,11 @@ enum AppText {
         defaultValue: "返回今天"
     )
 
+    static let today = String(
+        localized: "calendar.navigation.today",
+        defaultValue: "今天"
+    )
+
     static let openMonthPicker = String(
         localized: "calendar.month_picker.open",
         defaultValue: "选择年月"
@@ -178,6 +183,34 @@ enum AppText {
         )
     }
 
+    private static let todaySolarTermDistanceFormat = String(
+        localized: "lunar.today_solar_term_distance",
+        defaultValue: "距%1$@ %2$lld 天"
+    )
+
+    private static let todaySolarTermFormat = String(
+        localized: "lunar.today_solar_term",
+        defaultValue: "今日%1$@"
+    )
+
+    static func todaySolarTermDistance(_ name: String, _ daysRemaining: Int) -> String {
+        String(
+            format: todaySolarTermDistanceFormat,
+            locale: .current,
+            name,
+            daysRemaining
+        )
+    }
+
+    static func todaySolarTerm(_ name: String) -> String {
+        String(format: todaySolarTermFormat, locale: .current, name)
+    }
+
+    static let daySuffix = String(
+        localized: "calendar.day_suffix",
+        defaultValue: "日"
+    )
+
     // MARK: - 节假日
 
     static let holidayOffBadge = String(
@@ -240,7 +273,7 @@ enum AppText {
 
     static let weatherAttribution = String(
         localized: "weather.attribution",
-        defaultValue: "天气数据：Open-Meteo"
+        defaultValue: "Open-Meteo"
     )
 
     static let weatherLoading = String(
@@ -418,6 +451,11 @@ enum AppText {
     static let useCurrentLocation = String(
         localized: "weather.use_current_location",
         defaultValue: "使用当前位置"
+    )
+
+    static let moreActions = String(
+        localized: "common.more_actions",
+        defaultValue: "更多操作"
     )
 
     static let locationDeniedHint = String(

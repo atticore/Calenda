@@ -24,10 +24,11 @@ final class SettingsWindowController {
     init(
         settingsStore: SettingsStore,
         loginItemService: LoginItemService,
-        holidayService: HolidayService,
-        weatherService: WeatherService,
-        locationService: SystemLocationService,
-        citySearcher: any CitySearching
+        holidayService: HolidayChecking,
+        weatherService: WeatherRefreshing,
+        locationService: any Locating,
+        citySearcher: any CitySearching,
+        clock: any ClockProviding = SystemClock()
     ) {
         hostingView = NSHostingView(
             rootView: SettingsRootView(
@@ -36,7 +37,10 @@ final class SettingsWindowController {
                 holidayService: holidayService,
                 weatherService: weatherService,
                 locationService: locationService,
-                citySearcher: citySearcher
+                citySearcher: citySearcher,
+                visibleHolidayYearsProvider: {
+                    HolidayYearWindow.visibleYears(from: clock.now)
+                }
             )
         )
     }

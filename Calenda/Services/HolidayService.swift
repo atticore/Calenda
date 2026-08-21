@@ -71,10 +71,15 @@ nonisolated struct HolidayYearRecord: Sendable, Equatable {
     }
 }
 
+nonisolated protocol HolidayChecking: Sendable {
+    func checkForUpdates(years: Set<Int>) async -> [HolidayUpdateSummary]
+    func clearCachedData() async
+}
+
 /// 节假日数据服务（设计 10）：内置快照与磁盘缓存按新旧取优，
 /// 远端仅用于更新且失败不覆盖最后一次有效数据；跨年合并时
 /// 下一年度文件优先。
-actor HolidayService: HolidayProviding {
+actor HolidayService: HolidayProviding, HolidayChecking {
     private static let logger = Logger(
         subsystem: "com.atticore.Calenda",
         category: "holiday"

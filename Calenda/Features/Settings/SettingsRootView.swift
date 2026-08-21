@@ -18,12 +18,13 @@ struct SettingsRootView: View {
         case currentLocation
     }
 
-    private let store: SettingsStore
+    private let store: any SettingsProviding
     private let loginItemService: LoginItemService
-    private let holidayService: HolidayService
-    private let weatherService: WeatherService
-    private let locationService: SystemLocationService
+    private let holidayService: HolidayChecking
+    private let weatherService: WeatherRefreshing
+    private let locationService: any Locating
     private let citySearchModel: CitySearchModel
+    private let visibleHolidayYearsProvider: () -> Set<Int>
     @State private var loginState: LoginItemState = .notRegistered
     @State private var loginItemErrorText: String?
     @State private var holidaySummaryTexts: [String] = []
@@ -38,12 +39,13 @@ struct SettingsRootView: View {
     @State private var cacheClearResultText: String?
 
     init(
-        store: SettingsStore,
+        store: any SettingsProviding,
         loginItemService: LoginItemService,
-        holidayService: HolidayService,
-        weatherService: WeatherService,
-        locationService: SystemLocationService,
-        citySearcher: any CitySearching
+        holidayService: HolidayChecking,
+        weatherService: WeatherRefreshing,
+        locationService: any Locating,
+        citySearcher: any CitySearching,
+        visibleHolidayYearsProvider: @escaping () -> Set<Int>
     ) {
         self.store = store
         self.loginItemService = loginItemService
@@ -52,6 +54,7 @@ struct SettingsRootView: View {
         self.locationService = locationService
         let searchModel = CitySearchModel(searcher: citySearcher)
         citySearchModel = searchModel
+        self.visibleHolidayYearsProvider = visibleHolidayYearsProvider
         // 城市搜索只有在用户选中明确结果后才提交（设计 15.3）。
         searchModel.onSelect = { city in
             store.update {
@@ -307,17 +310,9 @@ struct SettingsRootView: View {
 
     private func resolveCurrentLocation() {
         locationStatusText = nil
-        isResolvingLocation = true
-        let locationService = locationService
-        Task { @MainActor in
-            do {
-                _ = try await locationService.currentLocation()
-                store.update { $0.activeLocation = .currentLocation }
-            } catch {
-                locationStatusText = AppText.locationDeniedHint
-            }
-            isResolvingLocation = false
-        }
+        // 由 AppModel 统一执行定位与天气刷新；设置页不预先请求位置，
+        // 避免刚完成授权时发起第二个并发 CoreLocation 请求。
+        store.update { $0.activeLocation = .currentLocation }
     }
 
     /// 手动刷新当前城市的天气（设计 12.3：城市改变、手动刷新允许）；
@@ -416,12 +411,7 @@ struct SettingsRootView: View {
     }
 
     private func visibleHolidayYears() -> Set<Int> {
-        let components = Calendar.current.dateComponents(
-            [.year],
-            from: .now
-        )
-        let currentYear = components.year ?? 2026
-        return [currentYear, currentYear + 1]
+        visibleHolidayYearsProvider()
     }
 
     private var startupSection: some View {

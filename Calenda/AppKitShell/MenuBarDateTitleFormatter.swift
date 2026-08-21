@@ -15,6 +15,11 @@ struct MenuBarDateTitleFormatter: Sendable {
     }
 
     nonisolated func string(from date: Date) -> String {
-        String(calendar.component(.day, from: date))
+        String(dayNumber(from: date))
+    }
+
+    /// 图标内绘制的当日数字；标题与图标共用同一来源。
+    nonisolated func dayNumber(from date: Date) -> Int {
+        calendar.component(.day, from: date)
     }
 }

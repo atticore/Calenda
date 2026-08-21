@@ -14,35 +14,27 @@ private enum CalendarGridPresentation {
 struct CalendarGrid: View {
     private enum Layout {
         static let columnCount = 7
-        static let gridSpacing: CGFloat = 4
-        static let horizontalPadding: CGFloat = 16
-        static let verticalPadding: CGFloat = 12
+        static let gridSpacing: CGFloat = 1
+        static let horizontalPadding: CGFloat = 14
+        static let verticalPadding: CGFloat = 8
         static let weekdayFont: Font = .caption.weight(.medium)
     }
 
     private let model: AppModel
-    private let focusedDay: FocusState<CalendarDayID?>.Binding
     @Namespace private var selectionNamespace
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    init(
-        model: AppModel,
-        focusedDay: FocusState<CalendarDayID?>.Binding
-    ) {
+    init(model: AppModel) {
         self.model = model
-        self.focusedDay = focusedDay
     }
 
     var body: some View {
         VStack(spacing: Layout.gridSpacing) {
             weekdayHeader
-            ZStack {
-                dayGrid
-            }
-            .clipped()
+            dayGrid
         }
         .padding(.horizontal, Layout.horizontalPadding)
         .padding(.vertical, Layout.verticalPadding)
+        .frame(maxHeight: .infinity, alignment: .top)
     }
 
     private var dayGrid: some View {
@@ -54,39 +46,9 @@ struct CalendarGrid: View {
                     badge: model.dayBadge(for: cell.id),
                     holidayMark: model.holidayMark(for: cell.id),
                     selectionNamespace: selectionNamespace,
-                    focusedDay: focusedDay,
                     action: { model.select(cell.id) }
                 )
             }
-        }
-        .id(model.displayedMonth)
-        .transition(monthTransition)
-        .animation(
-            reduceMotion ? nil : MotionTokens.monthTransition,
-            value: model.displayedMonth
-        )
-        .animation(
-            reduceMotion ? nil : MotionTokens.selectionIndicator,
-            value: model.selectedDay
-        )
-    }
-
-    /// 月份切换使用方向一致的过渡（设计 5.9）；
-    /// 减少动态效果时由 animation(nil) 保持瞬时切换。
-    private var monthTransition: AnyTransition {
-        switch model.monthNavigationDirection {
-        case .forward:
-            .asymmetric(
-                insertion: .move(edge: .trailing).combined(with: .opacity),
-                removal: .move(edge: .leading).combined(with: .opacity)
-            )
-        case .backward:
-            .asymmetric(
-                insertion: .move(edge: .leading).combined(with: .opacity),
-                removal: .move(edge: .trailing).combined(with: .opacity)
-            )
-        case .none:
-            .opacity
         }
     }
 

@@ -38,6 +38,15 @@ nonisolated enum LocationSelection: Sendable, Equatable {
     case currentLocation
 }
 
+extension LocationSelection {
+    nonisolated var isCurrentLocation: Bool {
+        if case .currentLocation = self {
+            return true
+        }
+        return false
+    }
+}
+
 nonisolated struct AppSettings: Sendable, Equatable {
     var weekStart: WeekStartOption
     var showsLunar: Bool

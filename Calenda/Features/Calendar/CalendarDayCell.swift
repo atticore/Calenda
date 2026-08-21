@@ -9,14 +9,14 @@ import SwiftUI
 
 struct CalendarDayCell: View {
     private enum Appearance {
-        static let minimumHeight: CGFloat = 44
-        static let cornerRadius: CGFloat = 8
-        static let badgeSpacing: CGFloat = 1
+        static let cellHeight: CGFloat = 48
+        static let cornerRadius: CGFloat = 10
+        static let badgeSpacing: CGFloat = 4
         static let todayLineWidth: CGFloat = 1
-        static let focusLineWidth: CGFloat = 2
         static let selectionBackgroundOpacity = 0.18
-        static let inMonthOpacity = 1.0
-        static let adjacentMonthOpacity = 0.45
+        static let hoverBackgroundOpacity = 0.08
+        static let adjacentDayOpacity = 0.42
+        static let adjacentBadgeOpacity = 0.38
         static let selectionMatchedGeometryID = "calendar.day.selection"
         static let cornerBadgeFontSize: CGFloat = 9
         static let cornerBadgeHorizontalPadding: CGFloat = 3
@@ -28,8 +28,8 @@ struct CalendarDayCell: View {
     private let badge: DayBadge?
     private let holidayMark: HolidayMark?
     private let selectionNamespace: Namespace.ID
-    private let focusedDay: FocusState<CalendarDayID?>.Binding
     private let action: () -> Void
+    @State private var isHovering = false
 
     init(
         cell: CalendarCellModel,
@@ -37,7 +37,6 @@ struct CalendarDayCell: View {
         badge: DayBadge?,
         holidayMark: HolidayMark?,
         selectionNamespace: Namespace.ID,
-        focusedDay: FocusState<CalendarDayID?>.Binding,
         action: @escaping () -> Void
     ) {
         self.cell = cell
@@ -45,7 +44,6 @@ struct CalendarDayCell: View {
         self.badge = badge
         self.holidayMark = holidayMark
         self.selectionNamespace = selectionNamespace
-        self.focusedDay = focusedDay
         self.action = action
     }
 
@@ -55,23 +53,28 @@ struct CalendarDayCell: View {
                 Text(cell.id.day, format: .number)
                     .font(.body.weight(.medium))
                     .monospacedDigit()
+                    .foregroundStyle(dayForegroundStyle)
                 if let badge {
                     // 第二行：法定节日、节气或农历（设计 5.4）
                     Text(badge.label)
                         .font(.caption2)
                         .lineLimit(1)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(badgeForegroundStyle)
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: Appearance.minimumHeight)
+            .frame(
+                maxWidth: .infinity,
+                minHeight: Appearance.cellHeight,
+                maxHeight: Appearance.cellHeight
+            )
+            .contentShape(RoundedRectangle(cornerRadius: Appearance.cornerRadius))
             .background(selectionBackground)
+            .background(hoverBackground)
             .overlay(todayOutline)
-            .overlay(focusOutline)
             .overlay(alignment: .topTrailing) { holidayCornerBadge }
         }
-        .buttonStyle(.plain)
-        .focused(focusedDay, equals: cell.id)
-        .opacity(cell.isInDisplayedMonth ? Appearance.inMonthOpacity : Appearance.adjacentMonthOpacity)
+        .buttonStyle(CalendarDayButtonStyle())
+        .onHover { isHovering = $0 }
         .accessibilityLabel(accessibilityLabel)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
@@ -114,18 +117,18 @@ struct CalendarDayCell: View {
     }
 
     @ViewBuilder
-    private var todayOutline: some View {
-        if cell.isToday {
+    private var hoverBackground: some View {
+        if isHovering, !isSelected {
             RoundedRectangle(cornerRadius: Appearance.cornerRadius)
-                .stroke(Color.accentColor, lineWidth: Appearance.todayLineWidth)
+                .fill(Color.primary.opacity(Appearance.hoverBackgroundOpacity))
         }
     }
 
     @ViewBuilder
-    private var focusOutline: some View {
-        if focusedDay.wrappedValue == cell.id {
+    private var todayOutline: some View {
+        if cell.isToday {
             RoundedRectangle(cornerRadius: Appearance.cornerRadius)
-                .stroke(Color.primary, lineWidth: Appearance.focusLineWidth)
+                .stroke(Color.accentColor, lineWidth: Appearance.todayLineWidth)
         }
     }
 
@@ -144,5 +147,30 @@ struct CalendarDayCell: View {
                 ? AppText.holidayOffDayStatus
                 : AppText.holidayWorkDayStatus
         )
+    }
+
+    private var dayForegroundStyle: Color {
+        cell.isInDisplayedMonth
+            ? .primary
+            : .primary.opacity(Appearance.adjacentDayOpacity)
+    }
+
+    private var badgeForegroundStyle: Color {
+        cell.isInDisplayedMonth
+            ? .secondary
+            : .primary.opacity(Appearance.adjacentBadgeOpacity)
+    }
+}
+
+private struct CalendarDayButtonStyle: ButtonStyle {
+    private enum Appearance {
+        static let pressedOpacity = 0.78
+        static let pressedScale: CGFloat = 0.98
+    }
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? Appearance.pressedOpacity : 1)
+            .scaleEffect(configuration.isPressed ? Appearance.pressedScale : 1)
     }
 }

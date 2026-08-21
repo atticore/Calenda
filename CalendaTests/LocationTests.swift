@@ -293,6 +293,71 @@ struct LocationAppModelTests {
         #expect(store.settings.activeLocation == .currentLocation)
         model.panelDidDisappear()
     }
+
+    @Test
+    func currentLocationIsResolvedOnlyOnceForAWeatherRefresh() async throws {
+        let store = SettingsStore(defaults: try makeDefaults())
+        let locationService = CountingLocating(location: suzhou)
+        let model = AppModel(
+            clock: FixedTestClock(now: ISO8601DateFormatter().date(from: "2026-08-21T10:00:00Z")!),
+            calendarService: CalendarService(timeZone: TimeZone(secondsFromGMT: 0)!),
+            settings: store,
+            weatherService: CannedWeather(mode: .success(temperature: 26)),
+            locationService: locationService
+        )
+
+        model.useCurrentLocation()
+        model.panelWillAppear()
+        await drainUntil {
+            if case let .loaded(snapshot, _) = model.weatherState {
+                return snapshot.location == self.suzhou
+            }
+            return false
+        }
+
+        #expect(await locationService.requestCount == LocationRequestExpectation.singleRequest)
+        model.panelDidDisappear()
+    }
+
+    @Test
+    func replacingAnInFlightCurrentLocationRefreshCancelsTheOldRequest() async throws {
+        let store = SettingsStore(defaults: try makeDefaults())
+        let locationService = CancellationTrackingLocating(location: suzhou)
+        let model = AppModel(
+            clock: FixedTestClock(now: ISO8601DateFormatter().date(from: "2026-08-21T10:00:00Z")!),
+            calendarService: CalendarService(timeZone: TimeZone(secondsFromGMT: 0)!),
+            settings: store,
+            weatherService: CannedWeather(mode: .success(temperature: 26)),
+            locationService: locationService
+        )
+
+        model.useCurrentLocation()
+        model.panelWillAppear()
+        await waitForLocationRequests(locationService, count: 1)
+
+        // 已经选择当前位置时再次点击，必须取消旧请求并由新请求完成刷新。
+        model.useCurrentLocation()
+        await drainUntil {
+            if case let .loaded(snapshot, _) = model.weatherState {
+                return snapshot.location == self.suzhou
+            }
+            return false
+        }
+
+        #expect(await locationService.requestCount == LocationRequestExpectation.replacedRequestCount)
+        #expect(await locationService.didCancelFirstRequest)
+        model.panelDidDisappear()
+    }
+
+    private func waitForLocationRequests(
+        _ locationService: CancellationTrackingLocating,
+        count: Int
+    ) async {
+        let deadline = Date().addingTimeInterval(LocationRequestExpectation.timeout)
+        while await locationService.requestCount < count, Date() < deadline {
+            try? await Task.sleep(for: .milliseconds(LocationRequestExpectation.pollIntervalMilliseconds))
+        }
+    }
 }
 
 // MARK: - 定位与天气替身
@@ -379,6 +444,63 @@ private actor DelayedLocating: Locating {
             throw error
         }
     }
+}
+
+private actor CountingLocating: Locating {
+    private let location: WeatherLocation
+    private(set) var requestCount = 0
+
+    init(location: WeatherLocation) {
+        self.location = location
+    }
+
+    func currentLocation() async throws -> WeatherLocation {
+        requestCount += 1
+        return location
+    }
+}
+
+private actor CancellationTrackingLocating: Locating {
+    private let location: WeatherLocation
+    private var firstRequestContinuation: CheckedContinuation<WeatherLocation, any Error>?
+    private(set) var requestCount = 0
+    private(set) var didCancelFirstRequest = false
+
+    init(location: WeatherLocation) {
+        self.location = location
+    }
+
+    func currentLocation() async throws -> WeatherLocation {
+        requestCount += 1
+        guard requestCount == LocationRequestExpectation.singleRequest else {
+            return location
+        }
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                firstRequestContinuation = continuation
+            }
+        } onCancel: {
+            Task {
+                await self.cancelFirstRequest()
+            }
+        }
+    }
+
+    private func cancelFirstRequest() {
+        guard let continuation = firstRequestContinuation else {
+            return
+        }
+        firstRequestContinuation = nil
+        didCancelFirstRequest = true
+        continuation.resume(throwing: CancellationError())
+    }
+}
+
+private enum LocationRequestExpectation {
+    static let singleRequest = 1
+    static let replacedRequestCount = 2
+    static let timeout: TimeInterval = 2
+    static let pollIntervalMilliseconds = 10
 }
 
 // MARK: - lastManualLocation 持久化

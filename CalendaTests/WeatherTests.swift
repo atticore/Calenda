@@ -459,6 +459,26 @@ struct WeatherServiceTests {
     }
 
     @Test
+    func cachedWeatherReturnsUsableStaleSnapshotWithoutNetwork() async throws {
+        let cacheDirectory = makeCacheDirectory()
+        let store = WeatherCacheStore(directoryURL: cacheDirectory)
+        try store.write(makeSnapshot(age: 45 * 60, temperature: 20))
+        let client = RecordingWeatherClient(
+            outcome: .snapshot(makeSnapshot(temperature: 30))
+        )
+        let service = WeatherService(
+            client: client,
+            cacheDirectory: cacheDirectory,
+            clock: FixedClock(now: now)
+        )
+
+        let snapshot = await service.cachedWeather(for: .defaultCity)
+
+        #expect(snapshot?.temperatureCelsius == 20)
+        #expect(await client.requestCount == 0)
+    }
+
+    @Test
     func failureWithUsableCacheReturnsCached() async throws {
         let cacheDirectory = makeCacheDirectory()
         let store = WeatherCacheStore(directoryURL: cacheDirectory)

@@ -18,12 +18,22 @@ nonisolated struct UnavailableWeatherClient: WeatherFetching {
     }
 }
 
+nonisolated protocol WeatherRefreshing: Sendable {
+    func refresh(for location: WeatherLocation) async throws -> WeatherSnapshot
+    func clearCache() async
+}
+
+/// 可选的缓存读取能力：面板可先绘制已有天气，再静默完成更新。
+nonisolated protocol WeatherCacheReading: Sendable {
+    func cachedWeather(for location: WeatherLocation) async -> WeatherSnapshot?
+}
+
 /// 天气服务（设计 12.3）：
 /// - 同一位置新鲜缓存直接返回；过期缓存触发网络更新；
 /// - 网络失败时保留最后一次有效数据（同位置），完全无数据时抛错；
 /// - 切换位置不复用旧城市缓存；
 /// - 弹窗关闭不取消进行中的刷新（actor 持有任务）。
-actor WeatherService: WeatherProviding {
+actor WeatherService: WeatherProviding, WeatherRefreshing, WeatherCacheReading {
     private static let logger = Logger(
         subsystem: "com.atticore.Calenda",
         category: "weather"
@@ -48,15 +58,7 @@ actor WeatherService: WeatherProviding {
         for location: WeatherLocation,
         policy: RefreshPolicy
     ) async throws -> WeatherSnapshot {
-        // 内存与磁盘中的同位置缓存互为候选，取较新者
-        let cached = Self.newer(
-            cachedSnapshot,
-            cacheStore.load(),
-            at: clock.now
-        )
-        if let cached {
-            cachedSnapshot = cached
-        }
+        let cached = loadCachedSnapshot()
 
         if let cached, cached.location == location {
             let shouldReturnCache: Bool
@@ -110,6 +112,17 @@ actor WeatherService: WeatherProviding {
         cachedSnapshot
     }
 
+    /// 只读同城市、仍在可用期内的缓存，不触发网络请求。
+    func cachedWeather(for location: WeatherLocation) -> WeatherSnapshot? {
+        guard let cached = loadCachedSnapshot(),
+              cached.location == location,
+              WeatherCachePolicy.isUsable(cached, at: clock.now)
+        else {
+            return nil
+        }
+        return cached
+    }
+
     /// 手动刷新入口：绕过新鲜期，但仍复用同位置在途约束。
     func refresh(
         for location: WeatherLocation
@@ -121,6 +134,18 @@ actor WeatherService: WeatherProviding {
     func clearCache() {
         cachedSnapshot = nil
         cacheStore.remove()
+    }
+
+    private func loadCachedSnapshot() -> WeatherSnapshot? {
+        let cached = Self.newer(
+            cachedSnapshot,
+            cacheStore.load(),
+            at: clock.now
+        )
+        if let cached {
+            cachedSnapshot = cached
+        }
+        return cached
     }
 
     private static func newer(

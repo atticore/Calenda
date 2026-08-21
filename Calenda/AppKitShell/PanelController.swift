@@ -58,9 +58,6 @@ final class PanelController: PanelControlling {
                 model: appModel,
                 openSettings: { [weak shellActions] in
                     shellActions?.openSettings()
-                },
-                quit: { [weak shellActions] in
-                    shellActions?.quit()
                 }
             )
         )
@@ -105,18 +102,18 @@ final class PanelController: PanelControlling {
 
         let anchorInWindow = statusButton.convert(statusButton.bounds, to: nil)
         let anchorOnScreen = statusWindow.convertToScreen(anchorInWindow)
-        let panelSize = PanelConfiguration.adaptedContentSize(
-            fittingSize: hostingView.fittingSize
-        )
         let panelFrame = positioner.frame(
             anchor: anchorOnScreen,
-            panelSize: panelSize,
+            panelSize: PanelConfiguration.contentSize,
             visibleFrame: screen.visibleFrame
         )
 
         panel.setFrame(panelFrame, display: false)
         NSApplication.shared.activate()
         panel.makeKeyAndOrderFront(nil)
+        // 状态栏应用的面板必须显式置前，否则可能被当前活跃应用的
+        // 浮层遮住，直到用户再次点击才成为最前层。
+        panel.orderFrontRegardless()
         outsideClickMonitor.install(
             panel: panel,
             anchorWindow: statusWindow,
@@ -125,6 +122,9 @@ final class PanelController: PanelControlling {
             },
             keyDownHandler: { [weak self] event in
                 self?.handleCalendarKeyDown(event) ?? false
+            },
+            ignoresGlobalClick: { [weak appModel] in
+                appModel?.isResolvingCurrentLocation ?? false
             }
         )
         visibility.finishShowing()

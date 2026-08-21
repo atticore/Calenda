@@ -16,28 +16,33 @@ final class OutsideClickMonitor {
     private var globalMouseMonitor: Any?
     private var localMouseMonitor: Any?
     private var localKeyMonitor: Any?
-    private var applicationResignObserver: NSObjectProtocol?
     private weak var panel: NSPanel?
     private weak var anchorWindow: NSWindow?
     private var closeHandler: (@MainActor (PanelCloseReason) -> Void)?
     private var keyDownHandler: (@MainActor (NSEvent) -> Bool)?
+    private var ignoresGlobalClick: (@MainActor () -> Bool)?
 
     func install(
         panel: NSPanel,
         anchorWindow: NSWindow?,
         closeHandler: @escaping @MainActor (PanelCloseReason) -> Void,
-        keyDownHandler: @escaping @MainActor (NSEvent) -> Bool
+        keyDownHandler: @escaping @MainActor (NSEvent) -> Bool,
+        ignoresGlobalClick: @escaping @MainActor () -> Bool = { false }
     ) {
         remove()
         self.panel = panel
         self.anchorWindow = anchorWindow
         self.closeHandler = closeHandler
         self.keyDownHandler = keyDownHandler
+        self.ignoresGlobalClick = ignoresGlobalClick
 
         globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(
             matching: [.leftMouseDown, .rightMouseDown]
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
+                guard self?.ignoresGlobalClick?() != true else {
+                    return
+                }
                 self?.requestClose(reason: .outsideClick)
             }
         }
@@ -69,15 +74,6 @@ final class OutsideClickMonitor {
             return nil
         }
 
-        applicationResignObserver = NotificationCenter.default.addObserver(
-            forName: NSApplication.didResignActiveNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.requestClose(reason: .applicationDeactivated)
-            }
-        }
     }
 
     func remove() {
@@ -93,14 +89,11 @@ final class OutsideClickMonitor {
             NSEvent.removeMonitor(localKeyMonitor)
             self.localKeyMonitor = nil
         }
-        if let applicationResignObserver {
-            NotificationCenter.default.removeObserver(applicationResignObserver)
-            self.applicationResignObserver = nil
-        }
         panel = nil
         anchorWindow = nil
         closeHandler = nil
         keyDownHandler = nil
+        ignoresGlobalClick = nil
     }
 
     isolated deinit {

@@ -227,11 +227,36 @@ struct HolidayClientTests {
             lastModified: nil
         )
 
-        guard case .failed(let reason) = result else {
+        guard case .notFound = result else {
             Issue.record("期望失败，实际：\(result)")
             return
         }
-        #expect(reason.contains("404"))
+    }
+}
+
+@Suite(.serialized)
+struct HolidayClientServiceIntegrationTests {
+    @Test
+    func allMirror404MarksFutureYearUnpublished() async {
+        let emptyBundle = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let service = HolidayService(
+            cacheDirectory: FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString, isDirectory: true),
+            bundleURL: emptyBundle,
+            client: HolidayClient(protocolClasses: [HolidayStubProtocol.self])
+        )
+        HolidayStubProtocol.reset()
+        for host in NetworkPolicy.trustedHosts {
+            HolidayStubProtocol.stub(host: host, status: 404)
+        }
+
+        let snapshot = await service.holidays(
+            for: [2031],
+            policy: .forceRefresh
+        )
+
+        #expect(snapshot.availabilityByYear[2031] == .unpublished)
     }
 }
 

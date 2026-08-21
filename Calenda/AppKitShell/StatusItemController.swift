@@ -11,6 +11,7 @@ import AppKit
 final class StatusItemController {
     private enum Presentation {
         static let iconSystemName = "calendar"
+        static let fallbackDayTitle = ""
     }
 
     private weak var panelController: (any PanelControlling)?
@@ -55,14 +56,8 @@ final class StatusItemController {
             return
         }
 
-        let image = NSImage(
-            systemSymbolName: Presentation.iconSystemName,
-            accessibilityDescription: AppText.menuBarAccessibilityLabel
-        )
-        image?.isTemplate = true
-
-        button.image = image
-        button.imagePosition = .imageLeading
+        button.image = nil
+        button.imagePosition = .noImage
         button.font = .monospacedDigitSystemFont(
             ofSize: NSFont.systemFontSize,
             weight: .medium
@@ -140,7 +135,7 @@ final class StatusItemController {
         }
     }
 
-    /// 右键临时弹出设置与退出菜单；不把 menu 永久赋给
+    /// 右键临时弹出设置菜单；不把 menu 永久赋给
     /// status item，避免吞掉左键动作（设计 5.3）。
     private func showContextMenu(for button: NSStatusBarButton) {
         guard let event = NSApp.currentEvent else {
@@ -154,25 +149,12 @@ final class StatusItemController {
             keyEquivalent: ","
         )
         settingsItem.target = self
-        menu.addItem(.separator())
-        let quitItem = menu.addItem(
-            withTitle: AppText.quitApp,
-            action: #selector(quitFromMenu),
-            keyEquivalent: "q"
-        )
-        quitItem.target = self
-
         NSMenu.popUpContextMenu(menu, with: event, for: button)
     }
 
     @objc
     private func openSettingsFromMenu() {
         shellActions?.openSettings()
-    }
-
-    @objc
-    private func quitFromMenu() {
-        shellActions?.quit()
     }
 
     @objc
@@ -202,10 +184,46 @@ final class StatusItemController {
         let style = settings?.settings.menuBarStyle ?? .iconAndDate
         switch style {
         case .iconAndDate:
-            statusItem.button?.title = titleFormatter.string(from: clock.now)
+            if let dateIcon = MenuBarDateIconRenderer.icon(
+                day: titleFormatter.dayNumber(from: clock.now),
+                calendarSymbolName: Presentation.iconSystemName
+            ) {
+                applyDateIcon(dateIcon)
+            } else {
+                applyFallbackDateTitle()
+            }
         case .icon:
-            statusItem.button?.title = ""
+            applySystemIcon()
         }
+    }
+
+    /// 日期图标与文字标题互斥：切换样式时先清空另一侧，
+    /// 避免旧内容残留导致宽度抖动。
+    private func applyDateIcon(_ icon: NSImage) {
+        guard let button = statusItem.button else {
+            return
+        }
+        button.title = Presentation.fallbackDayTitle
+        button.image = icon
+        button.imagePosition = .imageOnly
+    }
+
+    /// 系统符号缺失时的回退：沿用“无图标 + 文字日期”旧样式。
+    private func applyFallbackDateTitle() {
+        guard let button = statusItem.button else {
+            return
+        }
+        button.image = nil
+        button.title = titleFormatter.string(from: clock.now)
+    }
+
+    private func applySystemIcon() {
+        guard let button = statusItem.button else {
+            return
+        }
+        button.image = MenuBarDateIconRenderer.plainIcon()
+        button.title = Presentation.fallbackDayTitle
+        button.imagePosition = .imageOnly
     }
 
     private func scheduleMidnightTitleRefresh() {

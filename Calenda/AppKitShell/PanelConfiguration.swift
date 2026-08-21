@@ -8,19 +8,12 @@
 import AppKit
 
 enum PanelConfiguration {
-    static let contentSize = CGSize(width: 680, height: 460)
-    static let maxContentSize = CGSize(width: 780, height: 560)
+    /// 紧凑菜单栏面板：为日期格保留足够命中区域，同时避免占据过多桌面。
+    static let contentSize = CGSize(width: 610, height: 370)
     static let cornerRadius: CGFloat = 18
     static let collectionBehavior: NSWindow.CollectionBehavior = [
         .canJoinAllSpaces,
         .fullScreenAuxiliary,
         .transient,
     ]
-
-    static func adaptedContentSize(fittingSize: CGSize) -> CGSize {
-        CGSize(
-            width: min(max(fittingSize.width, contentSize.width), maxContentSize.width),
-            height: min(max(fittingSize.height, contentSize.height), maxContentSize.height)
-        )
-    }
 }

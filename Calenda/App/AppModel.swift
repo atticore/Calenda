@@ -28,6 +28,7 @@ final class AppModel {
     private(set) var cells: [CalendarCellModel]
     private(set) var weekStart: WeekStartOption
     private(set) var lunarInformationByDay: [CalendarDayID: LunarDayInformation] = [:]
+    private(set) var todayLunarInformation: LunarDayInformation?
     private(set) var showsLunar: Bool
     private(set) var showsSolarTerms: Bool
     private(set) var holidayMarksByDay: [CalendarDayID: HolidayMark] = [:]
@@ -36,6 +37,7 @@ final class AppModel {
     private(set) var isWeatherEnabled: Bool
     private(set) var temperatureUnit: TemperatureUnit
     private(set) var weatherState: Loadable<WeatherSnapshot> = .idle
+    private(set) var isResolvingCurrentLocation = false
 
     private let clock: any ClockProviding
     private var calendarService: CalendarService
@@ -44,6 +46,8 @@ final class AppModel {
     private var lunarTask: Task<Void, Never>?
     private let holidayService: any HolidayProviding
     private var holidayTask: Task<Void, Never>?
+    private var monthPreparationTask: Task<Void, Never>?
+    private var requestedMonth: CalendarMonthID?
     private let weatherService: any WeatherProviding
     private let locationService: any Locating
     private var weatherTask: Task<Void, Never>?
@@ -100,6 +104,8 @@ final class AppModel {
         self.locationService = locationService
         lunarTask = nil
         holidayTask = nil
+        monthPreparationTask = nil
+        requestedMonth = nil
         weatherTask = nil
         cells = []
         rebuildCells()
@@ -110,6 +116,7 @@ final class AppModel {
     isolated deinit {
         lunarTask?.cancel()
         holidayTask?.cancel()
+        monthPreparationTask?.cancel()
         weatherTask?.cancel()
         for observer in systemChangeObservers {
             NotificationCenter.default.removeObserver(observer)
@@ -138,6 +145,7 @@ final class AppModel {
     }
 
     func select(_ day: CalendarDayID) {
+        cancelMonthPreparation()
         selectedDay = day
         updateDisplayedMonth(
             CalendarMonthID(year: day.year, month: day.month)
@@ -147,18 +155,21 @@ final class AppModel {
     func moveDisplayedMonth(by offset: Int) {
         guard let adjustedMonth = calendarService.month(
             byAdding: offset,
-            to: displayedMonth
+            to: requestedMonth ?? displayedMonth
         ) else {
             return
         }
-        updateDisplayedMonth(adjustedMonth)
+        prepareMonth(
+            adjustedMonth,
+            selecting: selectedDay(in: adjustedMonth)
+        )
     }
 
     func display(month: CalendarMonthID) {
         guard calendarService.isValid(month: month) else {
             return
         }
-        updateDisplayedMonth(month)
+        prepareMonth(month, selecting: selectedDay(in: month))
     }
 
     func moveSelectedDay(by offset: Int) {
@@ -180,10 +191,14 @@ final class AppModel {
     }
 
     func refreshFromClock() {
+        cancelMonthPreparation()
         let previousToday = today
         now = clock.now
         let newToday = calendarService.dayID(for: now)
         today = newToday
+        if newToday != previousToday {
+            todayLunarInformation = nil
+        }
         if selectedDay == previousToday {
             selectedDay = newToday
         }
@@ -243,6 +258,7 @@ final class AppModel {
             weatherTask?.cancel()
             weatherState = .idle
             lastWeatherLocation = nil
+            isResolvingCurrentLocation = false
         } else if enableChanged || locationChanged {
             // 城市改变允许立即刷新（设计 12.3）
             refreshWeather(policy: .forceRefresh)
@@ -252,6 +268,7 @@ final class AppModel {
         guard nextWeekStart != weekStart else {
             return
         }
+        cancelMonthPreparation()
         weekStart = nextWeekStart
         rebuildCells()
     }
@@ -259,7 +276,10 @@ final class AppModel {
     // MARK: - 农历与节假日
 
     func lunarInformation(for day: CalendarDayID) -> LunarDayInformation? {
-        lunarInformationByDay[day]
+        if day == today {
+            return todayLunarInformation ?? lunarInformationByDay[day]
+        }
+        return lunarInformationByDay[day]
     }
 
     func holidayMark(for day: CalendarDayID) -> HolidayMark? {
@@ -295,12 +315,111 @@ final class AppModel {
     }
 
     private func updateDisplayedMonth(_ newMonth: CalendarMonthID) {
+        cancelMonthPreparation()
         guard newMonth != displayedMonth else {
             return
         }
         monthNavigationDirection = Self.compare(newMonth, displayedMonth)
         displayedMonth = newMonth
         rebuildCells()
+    }
+
+    /// 月份切换先准备公历、农历和节假日快照，再在同一轮观察更新中提交。
+    /// 这样不会先出现只有公历数字的半成品网格。
+    private func prepareMonth(
+        _ newMonth: CalendarMonthID,
+        selecting newSelectedDay: CalendarDayID?
+    ) {
+        guard newMonth != displayedMonth else {
+            cancelMonthPreparation()
+            if let newSelectedDay {
+                selectedDay = newSelectedDay
+            }
+            return
+        }
+        guard let preparedCells = try? calendarService.cells(
+            for: newMonth,
+            today: today,
+            weekStart: weekStart
+        ) else {
+            return
+        }
+
+        lunarTask?.cancel()
+        holidayTask?.cancel()
+        cancelMonthPreparation()
+        requestedMonth = newMonth
+
+        let days = preparedCells.map(\.id)
+        let lunarDays = daysIncludingToday(from: preparedCells)
+        let years = Set(days.map(\.year))
+        let lunarService = lunarService
+        let holidayService = holidayService
+        monthPreparationTask = Task { [weak self] in
+            async let lunarSnapshot = lunarService.information(for: lunarDays)
+            async let holidaySnapshot = holidayService.holidays(
+                for: years,
+                policy: .cacheOnly
+            )
+            let (lunar, holidays) = await (lunarSnapshot, holidaySnapshot)
+            guard !Task.isCancelled else {
+                return
+            }
+            self?.commitPreparedMonth(
+                newMonth,
+                selectedDay: newSelectedDay,
+                cells: preparedCells,
+                lunar: lunar,
+                holidays: holidays
+            )
+        }
+    }
+
+    private func commitPreparedMonth(
+        _ newMonth: CalendarMonthID,
+        selectedDay newSelectedDay: CalendarDayID?,
+        cells preparedCells: [CalendarCellModel],
+        lunar: LunarSnapshot,
+        holidays: HolidaySnapshot
+    ) {
+        guard requestedMonth == newMonth else {
+            return
+        }
+        monthPreparationTask = nil
+        requestedMonth = nil
+        monthNavigationDirection = Self.compare(newMonth, displayedMonth)
+        displayedMonth = newMonth
+        if let newSelectedDay {
+            selectedDay = newSelectedDay
+        }
+        cells = preparedCells
+        lunarInformationByDay = lunarInformation(from: lunar, for: preparedCells)
+        todayLunarInformation = lunar.information(for: today)
+        applyHoliday(holidays, for: preparedCells)
+        // 已先用缓存完成原子提交；之后仅在后台检查节假日更新。
+        refreshHolidays(policy: .refreshIfStale)
+    }
+
+    /// 用户在异步月份准备期间执行了另一项日期操作时，旧结果不得
+    /// 回写覆盖当前网格或选中日期。
+    private func cancelMonthPreparation() {
+        monthPreparationTask?.cancel()
+        monthPreparationTask = nil
+        requestedMonth = nil
+    }
+
+    private func selectedDay(in month: CalendarMonthID) -> CalendarDayID? {
+        let days = (1...selectedDay.day).reversed()
+        return days.lazy.compactMap { day in
+            let candidate = CalendarDayID(
+                year: month.year,
+                month: month.month,
+                day: day
+            )
+            return self.calendarService.noonDate(for: candidate) == nil
+                ? nil
+                : candidate
+        }.first
     }
 
     private static func compare(
@@ -315,6 +434,7 @@ final class AppModel {
 
     private func refreshLunar() {
         let days = cells.map(\.id)
+        let lunarDays = daysIncludingToday(from: cells)
         lunarTask?.cancel()
         guard !days.isEmpty else {
             lunarInformationByDay = [:]
@@ -322,7 +442,7 @@ final class AppModel {
         }
         let lunarService = lunarService
         lunarTask = Task { [weak self] in
-            let snapshot = await lunarService.information(for: days)
+            let snapshot = await lunarService.information(for: lunarDays)
             guard !Task.isCancelled else {
                 return
             }
@@ -331,12 +451,32 @@ final class AppModel {
     }
 
     private func applyLunar(_ snapshot: LunarSnapshot) {
+        lunarInformationByDay = lunarInformation(from: snapshot, for: cells)
+        todayLunarInformation = snapshot.information(for: today)
+    }
+
+    /// 右侧“今天”摘要独立于当前浏览的月份；今天落在网格外时也需要
+    /// 同时请求其农历信息。
+    private func daysIncludingToday(
+        from cells: [CalendarCellModel]
+    ) -> [CalendarDayID] {
+        var days = cells.map(\.id)
+        if !days.contains(today) {
+            days.append(today)
+        }
+        return days
+    }
+
+    private func lunarInformation(
+        from snapshot: LunarSnapshot,
+        for cells: [CalendarCellModel]
+    ) -> [CalendarDayID: LunarDayInformation] {
         var informationByDay: [CalendarDayID: LunarDayInformation] = [:]
         informationByDay.reserveCapacity(cells.count)
         for cell in cells where snapshot.information(for: cell.id) != nil {
             informationByDay[cell.id] = snapshot.information(for: cell.id)
         }
-        lunarInformationByDay = informationByDay
+        return informationByDay
     }
 
     /// 加载年份由 42 个可见日期动态计算（设计 10.5），
@@ -363,6 +503,13 @@ final class AppModel {
     }
 
     private func applyHoliday(_ snapshot: HolidaySnapshot) {
+        applyHoliday(snapshot, for: cells)
+    }
+
+    private func applyHoliday(
+        _ snapshot: HolidaySnapshot,
+        for cells: [CalendarCellModel]
+    ) {
         var marksByDay: [CalendarDayID: HolidayMark] = [:]
         marksByDay.reserveCapacity(cells.count)
         for cell in cells {
@@ -390,15 +537,30 @@ final class AppModel {
 
         let selection = settings?.settings.activeLocation ?? .defaultCity
         let weatherService = weatherService
+        let weatherCacheReader = weatherService as? any WeatherCacheReading
         let locationService = locationService
+        isResolvingCurrentLocation = selection.isCurrentLocation
         weatherTask = Task { [weak self] in
             do {
+                guard !Task.isCancelled else {
+                    return
+                }
                 let location = try await Self.resolve(
                     selection,
                     using: locationService
                 )
                 guard !Task.isCancelled else {
                     return
+                }
+                self?.isResolvingCurrentLocation = false
+                if let weatherCacheReader,
+                   let cachedSnapshot = await weatherCacheReader.cachedWeather(
+                    for: location
+                   ) {
+                    self?.showCachedWeather(
+                        cachedSnapshot,
+                        requestID: requestID
+                    )
                 }
                 self?.beginLoading(requestID: requestID, for: location)
                 let snapshot = try await weatherService.weather(
@@ -421,6 +583,7 @@ final class AppModel {
                 guard !Task.isCancelled else {
                     return
                 }
+                self?.isResolvingCurrentLocation = false
                 let error = (error as? UserFacingError) ?? .offline
                 let previous = self?.displayedWeatherSnapshot
                 self?.publish(requestID: requestID) {
@@ -458,6 +621,21 @@ final class AppModel {
         weatherState = .loading(previous: nil)
     }
 
+    /// 打开面板先维持可用天气；过期数据会由随后的服务调用静默替换。
+    private func showCachedWeather(
+        _ snapshot: WeatherSnapshot,
+        requestID: Int
+    ) {
+        guard requestID == weatherRequestID else {
+            return
+        }
+        lastWeatherLocation = snapshot.location
+        weatherState = .loaded(
+            snapshot,
+            freshness: WeatherCachePolicy.freshness(of: snapshot, at: now)
+        )
+    }
+
     private func publish(
         requestID: Int,
         _ makeState: () -> Loadable<WeatherSnapshot>
@@ -486,7 +664,14 @@ final class AppModel {
     /// 触发，权限请求发生在随后的定位解析里；拒绝后 CoreLocation
     /// 不再重复弹窗，天气保留最后成功内容。
     func useCurrentLocation() {
-        settings?.update { $0.activeLocation = .currentLocation }
+        guard let settings else {
+            return
+        }
+        if settings.settings.activeLocation == .currentLocation {
+            refreshWeather(policy: .forceRefresh)
+        } else {
+            settings.update { $0.activeLocation = .currentLocation }
+        }
     }
 
     private func registerForSystemChanges() {

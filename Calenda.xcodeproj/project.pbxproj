@@ -28,6 +28,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		FE0A0003000000000000000A /* DESIGN.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = DESIGN.md; sourceTree = "<group>"; };
+		FE0A0004000000000000000A /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		FEC578DD3035B030008DDEFA /* Calenda.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Calenda.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FEC578EA3035B033008DDEFA /* CalendaTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CalendaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FEC578F43035B033008DDEFA /* CalendaUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CalendaUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -74,6 +76,8 @@
 		FEC578D43035B030008DDEFA = {
 			isa = PBXGroup;
 			children = (
+				FE0A0003000000000000000A /* DESIGN.md */,
+				FE0A0004000000000000000A /* README.md */,
 				FEC578DF3035B030008DDEFA /* Calenda */,
 				FEC578ED3035B033008DDEFA /* CalendaTests */,
 				FEC578F73035B033008DDEFA /* CalendaUITests */,

@@ -12,37 +12,31 @@ import SwiftUI
 /// 缓存过期显示上次更新时间。
 struct WeatherView: View {
     private enum Appearance {
-        static let iconFontSize: CGFloat = 22
-        static let temperatureFontSize: CGFloat = 26
-        static let spacing: CGFloat = 4
-        static let attributionURL = URL(
-            string: "https://open-meteo.com"
-        )!
+        static let iconFontSize: CGFloat = 20
+        static let temperatureFontSize: CGFloat = 24
+        static let spacing: CGFloat = 6
+        static let conditionSpacing: CGFloat = 2
+        static let locationControlSize: CGFloat = 24
+        static let locationSymbol = "location.fill"
     }
 
     private let snapshot: WeatherSnapshot
-    private let freshness: DataFreshness
     private let unit: TemperatureUnit
     private let useCurrentLocation: (() -> Void)?
 
     init(
         snapshot: WeatherSnapshot,
-        freshness: DataFreshness,
+        freshness _: DataFreshness,
         unit: TemperatureUnit,
         useCurrentLocation: (() -> Void)? = nil
     ) {
         self.snapshot = snapshot
-        self.freshness = freshness
         self.unit = unit
         self.useCurrentLocation = useCurrentLocation
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Appearance.spacing) {
-            Text(AppText.currentWeatherLabel)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
             HStack(alignment: .firstTextBaseline, spacing: Appearance.spacing) {
                 Image(
                     systemName: snapshot.condition.symbolName(
@@ -50,68 +44,74 @@ struct WeatherView: View {
                     )
                 )
                 .font(.system(size: Appearance.iconFontSize))
-                Text(
-                    TemperatureFormatter.display(
-                        celsius: snapshot.temperatureCelsius,
-                        unit: unit
+                VStack(alignment: .leading, spacing: Appearance.conditionSpacing) {
+                    HStack(alignment: .firstTextBaseline, spacing: Appearance.spacing) {
+                        Text(
+                            TemperatureFormatter.display(
+                                celsius: snapshot.temperatureCelsius,
+                                unit: unit
+                            )
+                        )
+                        .font(
+                            .system(
+                                size: Appearance.temperatureFontSize,
+                                weight: .semibold
+                            )
+                        )
+                        .monospacedDigit()
+                        Text(snapshot.condition.displayName)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    Text(
+                        AppText.apparentTemperature(
+                            TemperatureFormatter.display(
+                                celsius: snapshot.apparentTemperatureCelsius,
+                                unit: unit
+                            )
+                        )
                     )
-                )
-                .font(.system(size: Appearance.temperatureFontSize, weight: .semibold))
-                .monospacedDigit()
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                }
             }
             .foregroundStyle(.primary)
-
-            Text(
-                AppText.apparentTemperature(
-                    TemperatureFormatter.display(
-                        celsius: snapshot.apparentTemperatureCelsius,
-                        unit: unit
-                    )
-                )
-            )
-            .font(.footnote)
-            .foregroundStyle(.secondary)
 
             HStack(spacing: Appearance.spacing) {
                 Text(cityDisplayName)
                     .font(.footnote.weight(.medium))
-                if freshnessText != nil {
-                    Text(freshnessText ?? "")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                if snapshot.location.isDefaultCity, let useCurrentLocation {
+                    Button(action: useCurrentLocation) {
+                        Image(systemName: Appearance.locationSymbol)
+                            .font(.caption)
+                            .frame(
+                                width: Appearance.locationControlSize,
+                                height: Appearance.locationControlSize
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(AppText.useCurrentLocation)
+                    .help(AppText.useCurrentLocation)
                 }
             }
-
-            if snapshot.location.isDefaultCity, let useCurrentLocation {
-                Button(AppText.useCurrentLocation, action: useCurrentLocation)
-                    .buttonStyle(.link)
-                    .font(.caption)
-            }
-
-            Link(AppText.weatherAttribution, destination: Appearance.attributionURL)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
     }
 
     private var cityDisplayName: String {
-        snapshot.location.isDefaultCity
-            ? AppText.defaultCityName(snapshot.location.displayName)
-            : snapshot.location.displayName
+        snapshot.location.displayName
+    }
+}
+
+struct WeatherAttributionView: View {
+    private enum Appearance {
+        static let attributionURL = URL(string: "https://open-meteo.com")!
     }
 
-    private var freshnessText: String? {
-        switch freshness {
-        case .fresh:
-            return nil
-        case let .stale(updatedAt):
-            return AppText.weatherUpdatedAt(
-                updatedAt.formatted(.dateTime.hour().minute())
-            )
-        case .bundled:
-            return nil
-        }
+    var body: some View {
+        Link(AppText.weatherAttribution, destination: Appearance.attributionURL)
+            .font(.caption2)
+            .foregroundStyle(.tertiary)
     }
 }
 
@@ -120,18 +120,30 @@ struct WeatherStatusView: View {
     private let state: Loadable<WeatherSnapshot>
     private let unit: TemperatureUnit
     private let useCurrentLocation: (() -> Void)?
+    private let isResolvingLocation: Bool
 
     init(
         state: Loadable<WeatherSnapshot>,
         unit: TemperatureUnit,
-        useCurrentLocation: (() -> Void)? = nil
+        useCurrentLocation: (() -> Void)? = nil,
+        isResolvingLocation: Bool = false
     ) {
         self.state = state
         self.unit = unit
         self.useCurrentLocation = useCurrentLocation
+        self.isResolvingLocation = isResolvingLocation
     }
 
     var body: some View {
+        if isResolvingLocation {
+            locationLoading
+        } else {
+            weatherContent
+        }
+    }
+
+    @ViewBuilder
+    private var weatherContent: some View {
         switch state {
         case .idle:
             EmptyView()
@@ -144,7 +156,11 @@ struct WeatherStatusView: View {
                     useCurrentLocation: useCurrentLocation
                 )
             } else {
-                label(AppText.weatherLoading)
+                HStack(spacing: Appearance.loadingSpacing) {
+                    ProgressView()
+                        .controlSize(.small)
+                    label(AppText.weatherLoading)
+                }
             }
         case let .failed(previous, error):
             VStack(alignment: .leading, spacing: 2) {
@@ -173,6 +189,14 @@ struct WeatherStatusView: View {
         }
     }
 
+    private var locationLoading: some View {
+        HStack(spacing: Appearance.loadingSpacing) {
+            ProgressView()
+                .controlSize(.small)
+            label(AppText.locationResolving)
+        }
+    }
+
     /// 定位不可用或仍展示默认城市时提供手动切到当前位置的入口
     ///（设计 11.1/11.3：权限只由用户显式操作触发）。
     @ViewBuilder
@@ -189,18 +213,21 @@ struct WeatherStatusView: View {
     }
 
     private func label(_ text: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(AppText.currentWeatherLabel)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text(text)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-        }
+        Text(text)
+            .font(.footnote)
+            .foregroundStyle(.secondary)
     }
 }
 
+private enum Appearance {
+    static let loadingSpacing: CGFloat = 6
+}
+
 extension WeatherCondition {
+    var displayName: String {
+        AppText.conditionDescription(self)
+    }
+
     /// SF Symbols 映射（设计 12.2）：结合昼夜区分晴与局部多云。
     func symbolName(isDay: Bool) -> String {
         switch self {

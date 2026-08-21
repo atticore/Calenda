@@ -30,29 +30,76 @@ final class SystemLocationService: NSObject, Locating {
         static let fallbackDisplayName = "当前位置"
     }
 
-    private let manager = CLLocationManager()
     private let geocoder = CLGeocoder()
     private let clock: any ClockProviding
 
     private var authorizationContinuation: CheckedContinuation<Void, any Error>?
     private var locationContinuation: CheckedContinuation<CLLocation, any Error>?
     private var timeoutTask: Task<Void, Never>?
+    private var pendingRequestID: UUID?
+    private var requestManager: CLLocationManager?
+    private var requestDelegate: LocationRequestDelegate?
 
     init(clock: any ClockProviding = SystemClock()) {
         self.clock = clock
         super.init()
-        manager.delegate = self
     }
 
     func currentLocation() async throws -> WeatherLocation {
-        try await waitForAuthorization()
-        let location = try await requestOneShotLocation()
-        return try await reverseGeocode(location)
+        let requestID = await beginRequest()
+        let result: Result<WeatherLocation, Error> = await Result {
+            try await withTaskCancellationHandler {
+                try await waitForAuthorization(requestID: requestID)
+                let fix = try await requestOneShotLocation(requestID: requestID)
+                return try await reverseGeocode(fix)
+            } onCancel: { [weak self] in
+                Task { @MainActor [weak self] in
+                    self?.cancelPendingRequest(requestID: requestID)
+                }
+            }
+        }
+        return try await handle(result, requestID: requestID)
+    }
+
+    private func beginRequest() -> UUID {
+        // Core Location 的代理只保留一组续期。新请求接管前必须显式结束旧请求，
+        // 否则旧任务在取消与新请求交错时可能永久挂起。
+        if let previousRequestID = pendingRequestID {
+            cancelPendingRequest(requestID: previousRequestID)
+        }
+        let requestID = UUID()
+        let manager = CLLocationManager()
+        let delegate = LocationRequestDelegate(
+            requestID: requestID,
+            owner: self
+        )
+        manager.delegate = delegate
+        pendingRequestID = requestID
+        requestManager = manager
+        requestDelegate = delegate
+        return requestID
+    }
+
+    @MainActor
+    private func handle(
+        _ result: Result<WeatherLocation, Error>,
+        requestID: UUID
+    ) async throws -> WeatherLocation {
+        finishRequest(requestID: requestID)
+        switch result {
+        case let .success(location):
+            return location
+        case let .failure(error):
+            throw error
+        }
     }
 
     // MARK: - 阶段实现
 
-    private func waitForAuthorization() async throws {
+    private func waitForAuthorization(requestID: UUID) async throws {
+        guard let manager = activeManager(for: requestID) else {
+            throw CancellationError()
+        }
         switch manager.authorizationStatus {
         case .authorizedWhenInUse, .authorizedAlways:
             return
@@ -63,17 +110,26 @@ final class SystemLocationService: NSObject, Locating {
                 authorizationContinuation = continuation
                 startTimeout(
                     Policy.authorizationTimeout,
-                    throwing: .locationUnavailable
+                    throwing: .locationUnavailable,
+                    requestID: requestID
                 )
                 manager.requestWhenInUseAuthorization()
             }
         }
     }
 
-    private func requestOneShotLocation() async throws -> CLLocation {
+    private func requestOneShotLocation(requestID: UUID) async throws -> CLLocation {
         try await withCheckedThrowingContinuation { continuation in
+            guard let manager = activeManager(for: requestID) else {
+                continuation.resume(throwing: CancellationError())
+                return
+            }
             locationContinuation = continuation
-            startTimeout(Policy.locationTimeout, throwing: .timeout)
+            startTimeout(
+                Policy.locationTimeout,
+                throwing: .timeout,
+                requestID: requestID
+            )
             manager.desiredAccuracy = Policy.desiredAccuracy
             manager.requestLocation()
         }
@@ -145,7 +201,8 @@ final class SystemLocationService: NSObject, Locating {
 
     private func startTimeout(
         _ interval: TimeInterval,
-        throwing error: UserFacingError
+        throwing error: UserFacingError,
+        requestID: UUID
     ) {
         timeoutTask?.cancel()
         timeoutTask = Task { [weak self] in
@@ -153,22 +210,63 @@ final class SystemLocationService: NSObject, Locating {
             guard !Task.isCancelled else {
                 return
             }
-            self?.handleTimeout(error)
+            self?.handleTimeout(error, requestID: requestID)
         }
     }
 
-    private func handleTimeout(_ error: UserFacingError) {
+    private func handleTimeout(
+        _ error: UserFacingError,
+        requestID: UUID
+    ) {
+        guard pendingRequestID == requestID else {
+            return
+        }
         if authorizationContinuation != nil {
             resumeAuthorization(with: .failure(error))
         } else if locationContinuation != nil {
             resumeLocation(with: .failure(error))
         }
     }
-}
 
-extension SystemLocationService: CLLocationManagerDelegate {
-    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        switch manager.authorizationStatus {
+    private func cancelPendingRequest(requestID: UUID) {
+        guard pendingRequestID == requestID else {
+            return
+        }
+        // 先清除归属，避免被取消任务的回调影响随后接管的新请求。
+        pendingRequestID = nil
+        requestManager?.stopUpdatingLocation()
+        requestManager = nil
+        requestDelegate = nil
+        resumeAuthorization(with: .failure(CancellationError()))
+        resumeLocation(with: .failure(CancellationError()))
+    }
+
+    private func finishRequest(requestID: UUID) {
+        guard pendingRequestID == requestID else {
+            return
+        }
+        pendingRequestID = nil
+        timeoutTask?.cancel()
+        timeoutTask = nil
+        requestManager = nil
+        requestDelegate = nil
+    }
+
+    private func activeManager(for requestID: UUID) -> CLLocationManager? {
+        guard pendingRequestID == requestID else {
+            return nil
+        }
+        return requestManager
+    }
+
+    fileprivate func handleAuthorizationChange(
+        _ status: CLAuthorizationStatus,
+        requestID: UUID
+    ) {
+        guard pendingRequestID == requestID else {
+            return
+        }
+        switch status {
         case .authorizedWhenInUse, .authorizedAlways:
             resumeAuthorization(with: .success(()))
         case .denied, .restricted:
@@ -180,10 +278,13 @@ extension SystemLocationService: CLLocationManagerDelegate {
         }
     }
 
-    func locationManager(
-        _ manager: CLLocationManager,
-        didUpdateLocations locations: [CLLocation]
+    fileprivate func handleLocations(
+        _ locations: [CLLocation],
+        requestID: UUID
     ) {
+        guard pendingRequestID == requestID else {
+            return
+        }
         // requestLocation 一次回调；取最后一个（通常最新）。
         guard let location = locations.last else {
             return
@@ -191,10 +292,42 @@ extension SystemLocationService: CLLocationManagerDelegate {
         resumeLocation(with: .success(location))
     }
 
+    fileprivate func handleLocationFailure(requestID: UUID) {
+        guard pendingRequestID == requestID else {
+            return
+        }
+        resumeLocation(with: .failure(UserFacingError.locationUnavailable))
+    }
+}
+
+@MainActor
+private final class LocationRequestDelegate: NSObject, CLLocationManagerDelegate {
+    private let requestID: UUID
+    private weak var owner: SystemLocationService?
+
+    init(requestID: UUID, owner: SystemLocationService) {
+        self.requestID = requestID
+        self.owner = owner
+    }
+
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        owner?.handleAuthorizationChange(
+            manager.authorizationStatus,
+            requestID: requestID
+        )
+    }
+
+    func locationManager(
+        _ manager: CLLocationManager,
+        didUpdateLocations locations: [CLLocation]
+    ) {
+        owner?.handleLocations(locations, requestID: requestID)
+    }
+
     func locationManager(
         _ manager: CLLocationManager,
         didFailWithError error: any Error
     ) {
-        resumeLocation(with: .failure(UserFacingError.locationUnavailable))
+        owner?.handleLocationFailure(requestID: requestID)
     }
 }
