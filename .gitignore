@@ -9,3 +9,6 @@ DerivedData/
 
 # macOS
 .DS_Store
+
+# Input source switcher build output (built on demand by test scheme)
+Tools/InputSourceSwitcher/.build/

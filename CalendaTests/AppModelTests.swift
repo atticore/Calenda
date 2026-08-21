@@ -275,6 +275,32 @@ struct AppModelTests {
         #expect(model.selectedDay == CalendarDayID(year: 2026, month: 2, day: 14))
     }
 
+    @Test
+    func monthNavigationDirectionTracksMovement() throws {
+        let clock = try makeClock(at: "2026-08-20T10:00:00Z")
+        let model = AppModel(
+            clock: clock,
+            calendarService: CalendarService(timeZone: Fixture.utc)
+        )
+
+        model.moveDisplayedMonth(by: 1)
+        #expect(model.monthNavigationDirection == .forward)
+
+        model.moveDisplayedMonth(by: -2)
+        #expect(model.monthNavigationDirection == .backward)
+
+        model.display(month: CalendarMonthID(year: 2030, month: 1))
+        #expect(model.monthNavigationDirection == .forward)
+
+        // 方向描述“最近一次月份变化”：同月内选日不产生新的月份过渡，
+        // 方向保持不变，供下一次跨月切换前视图保持稳定语义。
+        model.select(CalendarDayID(year: 2030, month: 1, day: 15))
+        #expect(model.monthNavigationDirection == .forward)
+
+        model.select(CalendarDayID(year: 2029, month: 12, day: 20))
+        #expect(model.monthNavigationDirection == .backward)
+    }
+
     // MARK: - 农历数据流
 
     @Test

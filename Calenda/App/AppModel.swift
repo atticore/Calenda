@@ -9,6 +9,12 @@ import AppKit
 import Foundation
 import Observation
 
+nonisolated enum MonthNavigationDirection: Sendable, Equatable {
+    case none
+    case forward
+    case backward
+}
+
 @MainActor
 @Observable
 final class AppModel {
@@ -16,6 +22,9 @@ final class AppModel {
     private(set) var today: CalendarDayID
     private(set) var selectedDay: CalendarDayID
     private(set) var displayedMonth: CalendarMonthID
+    /// 月份切换的方向，供视图选择一致的方向性过渡（设计 5.9）；
+    /// 与 displayedMonth 在同一事务内更新，避免过渡方向滞后一月。
+    private(set) var monthNavigationDirection: MonthNavigationDirection = .none
     private(set) var cells: [CalendarCellModel]
     private(set) var weekStart: WeekStartOption
     private(set) var lunarInformationByDay: [CalendarDayID: LunarDayInformation] = [:]
@@ -94,12 +103,9 @@ final class AppModel {
 
     func select(_ day: CalendarDayID) {
         selectedDay = day
-        let selectedMonth = CalendarMonthID(year: day.year, month: day.month)
-        guard selectedMonth != displayedMonth else {
-            return
-        }
-        displayedMonth = selectedMonth
-        rebuildCells()
+        updateDisplayedMonth(
+            CalendarMonthID(year: day.year, month: day.month)
+        )
     }
 
     func moveDisplayedMonth(by offset: Int) {
@@ -109,16 +115,14 @@ final class AppModel {
         ) else {
             return
         }
-        displayedMonth = adjustedMonth
-        rebuildCells()
+        updateDisplayedMonth(adjustedMonth)
     }
 
     func display(month: CalendarMonthID) {
         guard calendarService.isValid(month: month) else {
             return
         }
-        displayedMonth = month
-        rebuildCells()
+        updateDisplayedMonth(month)
     }
 
     func moveSelectedDay(by offset: Int) {
@@ -134,8 +138,9 @@ final class AppModel {
     func returnToToday() {
         refreshFromClock()
         selectedDay = today
-        displayedMonth = CalendarMonthID(year: today.year, month: today.month)
-        rebuildCells()
+        updateDisplayedMonth(
+            CalendarMonthID(year: today.year, month: today.month)
+        )
     }
 
     func refreshFromClock() {
@@ -214,6 +219,25 @@ final class AppModel {
             return showsLunar ? information.badgeWithoutSolarTerm : nil
         }
         return showsLunar ? information.badge : nil
+    }
+
+    private func updateDisplayedMonth(_ newMonth: CalendarMonthID) {
+        guard newMonth != displayedMonth else {
+            return
+        }
+        monthNavigationDirection = Self.compare(newMonth, displayedMonth)
+        displayedMonth = newMonth
+        rebuildCells()
+    }
+
+    private static func compare(
+        _ lhs: CalendarMonthID,
+        _ rhs: CalendarMonthID
+    ) -> MonthNavigationDirection {
+        if lhs.year != rhs.year {
+            return lhs.year > rhs.year ? .forward : .backward
+        }
+        return lhs.month > rhs.month ? .forward : .backward
     }
 
     private func refreshLunar() {

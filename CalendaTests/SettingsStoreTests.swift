@@ -130,14 +130,20 @@ struct SettingsStoreTests {
 
     @Test
     func storeDoesNotTouchTheStandardSuiteWhenInjected() {
+        // 开发机上可能存在真实运行留下的持久化值，
+        // 断言“注入 suite 的写入不改变 standard 域”而非“standard 为空”。
+        let baseline = UserDefaults.standard.object(
+            forKey: "settings.showsLunar"
+        ) as? NSNumber
+
         let defaults = makeIsolatedDefaults()
         let store = SettingsStore(defaults: defaults)
         store.update { $0.showsLunar = false }
 
-        #expect(
-            UserDefaults.standard.object(forKey: "settings.showsLunar")
-                == nil
-        )
+        let after = UserDefaults.standard.object(
+            forKey: "settings.showsLunar"
+        ) as? NSNumber
+        #expect(after == baseline)
     }
 }
 

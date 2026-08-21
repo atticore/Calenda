@@ -17,11 +17,13 @@ struct CalendarDayCell: View {
         static let selectionBackgroundOpacity = 0.18
         static let inMonthOpacity = 1.0
         static let adjacentMonthOpacity = 0.45
+        static let selectionMatchedGeometryID = "calendar.day.selection"
     }
 
     private let cell: CalendarCellModel
     private let isSelected: Bool
     private let badge: LunarDayBadge?
+    private let selectionNamespace: Namespace.ID
     private let focusedDay: FocusState<CalendarDayID?>.Binding
     private let action: () -> Void
 
@@ -29,12 +31,14 @@ struct CalendarDayCell: View {
         cell: CalendarCellModel,
         isSelected: Bool,
         badge: LunarDayBadge?,
+        selectionNamespace: Namespace.ID,
         focusedDay: FocusState<CalendarDayID?>.Binding,
         action: @escaping () -> Void
     ) {
         self.cell = cell
         self.isSelected = isSelected
         self.badge = badge
+        self.selectionNamespace = selectionNamespace
         self.focusedDay = focusedDay
         self.action = action
     }
@@ -65,13 +69,22 @@ struct CalendarDayCell: View {
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
+    /// 选中背景通过 matchedGeometryEffect 在日期格之间移动（设计 5.9）。
     private var selectionBackground: some View {
-        RoundedRectangle(cornerRadius: Appearance.cornerRadius)
-            .fill(
-                isSelected
-                    ? Color.accentColor.opacity(Appearance.selectionBackgroundOpacity)
-                    : .clear
-            )
+        Group {
+            if isSelected {
+                RoundedRectangle(cornerRadius: Appearance.cornerRadius)
+                    .fill(
+                        Color.accentColor.opacity(
+                            Appearance.selectionBackgroundOpacity
+                        )
+                    )
+                    .matchedGeometryEffect(
+                        id: Appearance.selectionMatchedGeometryID,
+                        in: selectionNamespace
+                    )
+            }
+        }
     }
 
     @ViewBuilder
