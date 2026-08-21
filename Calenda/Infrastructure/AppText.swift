@@ -413,6 +413,58 @@ enum AppText {
         defaultValue: "刷新失败，请稍后重试"
     )
 
+    // MARK: - 位置与城市搜索
+
+    static let useCurrentLocation = String(
+        localized: "weather.use_current_location",
+        defaultValue: "使用当前位置"
+    )
+
+    static let locationDeniedHint = String(
+        localized: "weather.location_denied_hint",
+        defaultValue: "定位不可用，可选择手动城市"
+    )
+
+    static let settingsCitySource = String(
+        localized: "settings.city_source",
+        defaultValue: "城市来源"
+    )
+
+    static let locationDefaultCity = String(
+        localized: "location.default_city",
+        defaultValue: "默认（北京）"
+    )
+
+    static let locationManual = String(
+        localized: "location.manual",
+        defaultValue: "手动城市"
+    )
+
+    static let locationCurrent = String(
+        localized: "location.current",
+        defaultValue: "当前位置"
+    )
+
+    static let locationResolving = String(
+        localized: "location.resolving",
+        defaultValue: "正在定位…"
+    )
+
+    static let citySearchPlaceholder = String(
+        localized: "city_search.placeholder",
+        defaultValue: "输入城市名搜索（至少 2 个字符）"
+    )
+
+    static let citySearchSearching = String(
+        localized: "city_search.searching",
+        defaultValue: "搜索中…"
+    )
+
+    static let citySearchEmpty = String(
+        localized: "city_search.empty",
+        defaultValue: "没有匹配的城市"
+    )
+
     // MARK: - 节假日设置
 
     static let settingsChineseHolidays = String(

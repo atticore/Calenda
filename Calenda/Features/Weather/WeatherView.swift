@@ -23,15 +23,18 @@ struct WeatherView: View {
     private let snapshot: WeatherSnapshot
     private let freshness: DataFreshness
     private let unit: TemperatureUnit
+    private let useCurrentLocation: (() -> Void)?
 
     init(
         snapshot: WeatherSnapshot,
         freshness: DataFreshness,
-        unit: TemperatureUnit
+        unit: TemperatureUnit,
+        useCurrentLocation: (() -> Void)? = nil
     ) {
         self.snapshot = snapshot
         self.freshness = freshness
         self.unit = unit
+        self.useCurrentLocation = useCurrentLocation
     }
 
     var body: some View {
@@ -79,6 +82,12 @@ struct WeatherView: View {
                 }
             }
 
+            if snapshot.location.isDefaultCity, let useCurrentLocation {
+                Button(AppText.useCurrentLocation, action: useCurrentLocation)
+                    .buttonStyle(.link)
+                    .font(.caption)
+            }
+
             Link(AppText.weatherAttribution, destination: Appearance.attributionURL)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
@@ -110,10 +119,16 @@ struct WeatherView: View {
 struct WeatherStatusView: View {
     private let state: Loadable<WeatherSnapshot>
     private let unit: TemperatureUnit
+    private let useCurrentLocation: (() -> Void)?
 
-    init(state: Loadable<WeatherSnapshot>, unit: TemperatureUnit) {
+    init(
+        state: Loadable<WeatherSnapshot>,
+        unit: TemperatureUnit,
+        useCurrentLocation: (() -> Void)? = nil
+    ) {
         self.state = state
         self.unit = unit
+        self.useCurrentLocation = useCurrentLocation
     }
 
     var body: some View {
@@ -125,7 +140,8 @@ struct WeatherStatusView: View {
                 WeatherView(
                     snapshot: previous,
                     freshness: .stale(updatedAt: previous.fetchedAt),
-                    unit: unit
+                    unit: unit,
+                    useCurrentLocation: useCurrentLocation
                 )
             } else {
                 label(AppText.weatherLoading)
@@ -133,6 +149,9 @@ struct WeatherStatusView: View {
         case let .failed(previous, error):
             VStack(alignment: .leading, spacing: 2) {
                 label(AppText.weatherUnavailableText(error))
+                if error == .locationUnavailable {
+                    locationHint
+                }
                 if let previous {
                     Text(
                         AppText.weatherUpdatedAt(
@@ -145,7 +164,27 @@ struct WeatherStatusView: View {
                 }
             }
         case let .loaded(snapshot, freshness):
-            WeatherView(snapshot: snapshot, freshness: freshness, unit: unit)
+            WeatherView(
+                snapshot: snapshot,
+                freshness: freshness,
+                unit: unit,
+                useCurrentLocation: useCurrentLocation
+            )
+        }
+    }
+
+    /// 定位不可用或仍展示默认城市时提供手动切到当前位置的入口
+    ///（设计 11.1/11.3：权限只由用户显式操作触发）。
+    @ViewBuilder
+    private var locationHint: some View {
+        if let useCurrentLocation {
+            Button(AppText.useCurrentLocation, action: useCurrentLocation)
+                .buttonStyle(.link)
+                .font(.caption)
+        } else {
+            Text(AppText.locationDeniedHint)
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
         }
     }
 

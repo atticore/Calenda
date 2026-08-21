@@ -173,7 +173,8 @@ struct PanelShellView: View {
                 if model.isWeatherEnabled {
                     WeatherStatusView(
                         state: model.weatherState,
-                        unit: model.temperatureUnit
+                        unit: model.temperatureUnit,
+                        useCurrentLocation: model.useCurrentLocation
                     )
                 }
                 Spacer()

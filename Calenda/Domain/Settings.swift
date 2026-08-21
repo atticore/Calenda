@@ -16,7 +16,7 @@ nonisolated enum TemperatureUnit: String, Sendable, Equatable {
 }
 
 /// 手动城市的稳定保存字段（设计 11.3）；显示名称由结构化字段拼接。
-nonisolated struct ManualCity: Codable, Sendable, Equatable {
+nonisolated struct ManualCity: Codable, Sendable, Equatable, Hashable {
     let name: String
     let admin1: String
     let countryCode: String
@@ -46,12 +46,15 @@ nonisolated struct AppSettings: Sendable, Equatable {
     var menuBarStyle: MenuBarStyle
     var isWeatherEnabled: Bool
     var activeLocation: LocationSelection
+    /// 最近一次选中的手动城市（设计 11.3）：与 activeLocation
+    /// 分开保存，城市来源切回“手动”时无需重新搜索。
+    var lastManualLocation: ManualCity?
     var temperatureUnit: TemperatureUnit
 }
 
 extension AppSettings {
     /// 设计 15.2 的默认值：周一、全部显示项开启、图标加日期、
-    /// 天气开启、默认城市（北京）、摄氏度。
+    /// 天气开启、默认城市（北京）、摄氏度、尚无手动城市。
     static let defaultSettings = AppSettings(
         weekStart: .monday,
         showsLunar: true,
@@ -60,6 +63,7 @@ extension AppSettings {
         menuBarStyle: .iconAndDate,
         isWeatherEnabled: true,
         activeLocation: .defaultCity,
+        lastManualLocation: nil,
         temperatureUnit: .celsius
     )
 }

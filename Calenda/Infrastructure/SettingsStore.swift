@@ -37,6 +37,7 @@ final class SettingsStore: SettingsProviding {
         static let menuBarStyle = "\(prefix).menuBarStyle"
         static let isWeatherEnabled = "\(prefix).isWeatherEnabled"
         static let activeLocation = "\(prefix).activeLocation"
+        static let lastManualLocation = "\(prefix).lastManualLocation"
         static let temperatureUnit = "\(prefix).temperatureUnit"
     }
 
@@ -84,6 +85,10 @@ final class SettingsStore: SettingsProviding {
             from: defaults,
             fallback: loaded.activeLocation
         )
+        loaded.lastManualLocation = loadManualCity(
+            from: defaults,
+            forKey: Keys.lastManualLocation
+        )
         loaded.temperatureUnit = defaults.string(forKey: Keys.temperatureUnit)
             .flatMap(TemperatureUnit.init(rawValue:))
             ?? loaded.temperatureUnit
@@ -118,6 +123,22 @@ final class SettingsStore: SettingsProviding {
         }
     }
 
+    /// 手动城市为可选值；损坏或坐标非法时回退 nil，
+    /// 不影响其他设置字段。
+    private static func loadManualCity(
+        from defaults: UserDefaults,
+        forKey key: String
+    ) -> ManualCity? {
+        guard
+            let data = defaults.data(forKey: key),
+            let city = try? JSONDecoder().decode(ManualCity.self, from: data),
+            city.hasValidCoordinates
+        else {
+            return nil
+        }
+        return city
+    }
+
     private static func persist(_ settings: AppSettings, to defaults: UserDefaults) {
         defaults.set(
             settings.weekStart.rawValue,
@@ -137,6 +158,10 @@ final class SettingsStore: SettingsProviding {
         defaults.set(
             settings.activeLocation.persistedData,
             forKey: Keys.activeLocation
+        )
+        defaults.set(
+            (try? JSONEncoder().encode(settings.lastManualLocation)) ?? Data(),
+            forKey: Keys.lastManualLocation
         )
         defaults.set(
             settings.temperatureUnit.rawValue,

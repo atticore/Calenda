@@ -91,6 +91,36 @@
         }
       }
     },
+    "city_search.empty": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有匹配的城市"
+          }
+        }
+      }
+    },
+    "city_search.placeholder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "输入城市名搜索（至少 2 个字符）"
+          }
+        }
+      }
+    },
+    "city_search.searching": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索中…"
+          }
+        }
+      }
+    },
     "holiday.accessibility.off_day": {
       "localizations": {
         "zh-Hans": {
@@ -221,6 +251,46 @@
         }
       }
     },
+    "location.current": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前位置"
+          }
+        }
+      }
+    },
+    "location.default_city": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "默认（北京）"
+          }
+        }
+      }
+    },
+    "location.manual": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手动城市"
+          }
+        }
+      }
+    },
+    "location.resolving": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在定位…"
+          }
+        }
+      }
+    },
     "lunar.next_solar_term_line": {
       "localizations": {
         "zh-Hans": {
@@ -257,6 +327,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "启用中国法定节假日"
+          }
+        }
+      }
+    },
+    "settings.city_source": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "城市来源"
           }
         }
       }
@@ -911,12 +991,32 @@
         }
       }
     },
+    "weather.location_denied_hint": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "定位不可用，可选择手动城市"
+          }
+        }
+      }
+    },
     "weather.updated_at": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "上次更新 %1$@"
+          }
+        }
+      }
+    },
+    "weather.use_current_location": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用当前位置"
           }
         }
       }

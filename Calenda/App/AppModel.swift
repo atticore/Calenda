@@ -45,7 +45,10 @@ final class AppModel {
     private let holidayService: any HolidayProviding
     private var holidayTask: Task<Void, Never>?
     private let weatherService: any WeatherProviding
+    private let locationService: any Locating
     private var weatherTask: Task<Void, Never>?
+    /// 天气请求单调序号：迟到任务（旧城市、旧位置解析）不得覆盖新状态。
+    private var weatherRequestID = 0
     private var lastWeatherLocation: WeatherLocation?
     private var lastActiveLocation: LocationSelection?
     private(set) var isPanelVisible = false
@@ -69,7 +72,8 @@ final class AppModel {
         holidayService: any HolidayProviding = HolidayService(),
         weatherService: any WeatherProviding = WeatherService(
             client: UnavailableWeatherClient()
-        )
+        ),
+        locationService: any Locating = SystemLocationService()
     ) {
         let initialNow = clock.now
         self.clock = clock
@@ -93,6 +97,7 @@ final class AppModel {
         self.lunarService = lunarService
         self.holidayService = holidayService
         self.weatherService = weatherService
+        self.locationService = locationService
         lunarTask = nil
         holidayTask = nil
         weatherTask = nil
@@ -373,38 +378,29 @@ final class AppModel {
 
     /// 城市与天气只能作为单个快照原子发布（设计 12.1/12.3）：
     /// 切换城市进入 loading(previous: nil)，不复用旧城市天气；
-    /// 同城刷新保留旧快照继续展示。
+    /// 同城刷新保留旧快照继续展示。当前位置先解析为城市再进入
+    /// 同一套流程；迟到请求按序号丢弃（防错配）。
     private func refreshWeather(policy: RefreshPolicy) {
         weatherTask?.cancel()
-        guard isWeatherEnabled,
-              let location = WeatherLocation.resolving(
-                  settings?.settings.activeLocation ?? .defaultCity
-              )
-        else {
+        weatherRequestID &+= 1
+        let requestID = weatherRequestID
+        guard isWeatherEnabled else {
             return
         }
 
-        let keepsPrevious = (lastWeatherLocation == location)
-        var previousSnapshot: WeatherSnapshot?
-        if !keepsPrevious {
-            weatherState = .loading(previous: nil)
-        } else {
-            switch weatherState {
-            case let .loaded(snapshot, _):
-                previousSnapshot = snapshot
-                weatherState = .loading(previous: snapshot)
-            case let .loading(previous):
-                previousSnapshot = previous
-            case .idle, .failed:
-                weatherState = .loading(previous: nil)
-            }
-        }
-        lastWeatherLocation = location
-
+        let selection = settings?.settings.activeLocation ?? .defaultCity
         let weatherService = weatherService
-        let failurePrevious = keepsPrevious ? previousSnapshot : nil
+        let locationService = locationService
         weatherTask = Task { [weak self] in
             do {
+                let location = try await Self.resolve(
+                    selection,
+                    using: locationService
+                )
+                guard !Task.isCancelled else {
+                    return
+                }
+                self?.beginLoading(requestID: requestID, for: location)
                 let snapshot = try await weatherService.weather(
                     for: location,
                     policy: policy
@@ -412,38 +408,85 @@ final class AppModel {
                 guard !Task.isCancelled else {
                     return
                 }
-                self?.publishWeather(
+                self?.publish(requestID: requestID) {
                     .loaded(
                         snapshot,
                         freshness: WeatherCachePolicy.freshness(
                             of: snapshot,
                             at: .now
                         )
-                    ),
-                    matching: location
-                )
+                    )
+                }
             } catch {
                 guard !Task.isCancelled else {
                     return
                 }
                 let error = (error as? UserFacingError) ?? .offline
-                self?.publishWeather(
-                    .failed(previous: failurePrevious, error: error),
-                    matching: location
-                )
+                let previous = self?.displayedWeatherSnapshot
+                self?.publish(requestID: requestID) {
+                    .failed(previous: previous, error: error)
+                }
             }
         }
     }
 
-    /// 迟到的旧位置结果不得覆盖新位置状态（防错配）。
-    private func publishWeather(
-        _ state: Loadable<WeatherSnapshot>,
-        matching location: WeatherLocation
-    ) {
-        guard lastWeatherLocation == location else {
+    /// 手动/默认城市为同步解析；当前位置触发一次性定位与
+    /// 反向地理编码（设计 11），失败按 locationUnavailable 抛出。
+    private static func resolve(
+        _ selection: LocationSelection,
+        using locationService: any Locating
+    ) async throws -> WeatherLocation {
+        if case .currentLocation = selection {
+            return try await locationService.currentLocation()
+        }
+        guard let location = WeatherLocation.resolving(selection) else {
+            throw UserFacingError.locationUnavailable
+        }
+        return location
+    }
+
+    /// 城市确定后才决定是否保留旧内容：同城继续展示原快照，
+    /// 新城市清空重进 loading，避免新旧城市内容错配闪现。
+    private func beginLoading(requestID: Int, for location: WeatherLocation) {
+        guard requestID == weatherRequestID else {
             return
         }
-        weatherState = state
+        if lastWeatherLocation == location {
+            return
+        }
+        lastWeatherLocation = location
+        weatherState = .loading(previous: nil)
+    }
+
+    private func publish(
+        requestID: Int,
+        _ makeState: () -> Loadable<WeatherSnapshot>
+    ) {
+        guard requestID == weatherRequestID else {
+            return
+        }
+        weatherState = makeState()
+    }
+
+    /// 当前正在展示的快照（loaded/loading/failed 中的 previous）。
+    private var displayedWeatherSnapshot: WeatherSnapshot? {
+        switch weatherState {
+        case let .loaded(snapshot, _):
+            return snapshot
+        case let .loading(previous):
+            return previous
+        case let .failed(previous, _):
+            return previous
+        case .idle:
+            return nil
+        }
+    }
+
+    /// 天气卡片“使用当前位置”入口（设计 11.1）：由用户显式操作
+    /// 触发，权限请求发生在随后的定位解析里；拒绝后 CoreLocation
+    /// 不再重复弹窗，天气保留最后成功内容。
+    func useCurrentLocation() {
+        settings?.update { $0.activeLocation = .currentLocation }
     }
 
     private func registerForSystemChanges() {
