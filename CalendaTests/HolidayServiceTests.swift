@@ -185,6 +185,68 @@ struct HolidayCacheStoreTests {
 
         #expect(store.entry(for: 2026) == nil)
     }
+
+    @Test
+    func removeAllDeletesYearFilesOnly() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let store = HolidayCacheStore(directoryURL: directory)
+        let entry = HolidayCacheEntry(
+            payload: HolidayYearPayload(
+                year: 2026,
+                papers: [],
+                days: []
+            ),
+            sourceURL: "https://example.com/2026.json",
+            etag: nil,
+            lastModified: nil,
+            fetchedAt: Date(timeIntervalSince1970: 1_800_000_000),
+            sha256: "0000"
+        )
+        try store.write(entry, for: 2026)
+        try store.write(entry, for: 2027)
+        // 非缓存文件不应被清除逻辑触碰
+        let notes = directory.appendingPathComponent("notes.txt")
+        try Data("keep".utf8).write(to: notes)
+
+        store.removeAll()
+
+        #expect(store.entry(for: 2026) == nil)
+        #expect(store.entry(for: 2027) == nil)
+        #expect(FileManager.default.fileExists(atPath: notes.path))
+    }
+
+    @Test
+    func serviceClearCachedDataFallsBackToBundle() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let service = HolidayService(cacheDirectory: directory)
+
+        // 先产生磁盘缓存（内置 2026 数据经 refresh 写入需要网络；
+        // 这里直接用 cacheOnly 读内置，再手工写一份缓存验证清除）
+        _ = await service.holidays(for: [2026], policy: .cacheOnly)
+        let store = HolidayCacheStore(directoryURL: directory)
+        let entry = HolidayCacheEntry(
+            payload: HolidayYearPayload(
+                year: 2026,
+                papers: [],
+                days: []
+            ),
+            sourceURL: "https://example.com/2026.json",
+            etag: nil,
+            lastModified: nil,
+            fetchedAt: Date(timeIntervalSince1970: 1_800_000_100),
+            sha256: "0000"
+        )
+        try store.write(entry, for: 2026)
+
+        await service.clearCachedData()
+
+        #expect(store.entry(for: 2026) == nil)
+        // 清除后仍可从内置快照读取（设计 16：不破坏核心体验）
+        let snapshot = await service.holidays(for: [2026], policy: .cacheOnly)
+        #expect(snapshot.availabilityByYear[2026] == .published)
+    }
 }
 
 private final class MutableClock: ClockProviding, @unchecked Sendable {

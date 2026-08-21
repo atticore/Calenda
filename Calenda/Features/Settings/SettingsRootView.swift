@@ -33,6 +33,9 @@ struct SettingsRootView: View {
     @State private var cityQuery = ""
     @State private var locationStatusText: String?
     @State private var isResolvingLocation = false
+    @State private var isConfirmingCacheClear = false
+    @State private var isClearingCaches = false
+    @State private var cacheClearResultText: String?
 
     init(
         store: SettingsStore,
@@ -63,11 +66,57 @@ struct SettingsRootView: View {
             generalSection
             weatherSection
             holidaySection
+            privacySection
             startupSection
         }
         .formStyle(.grouped)
         .frame(minWidth: 480, minHeight: 400)
         .onAppear(perform: refreshLoginState)
+        .confirmationDialog(
+            AppText.clearCacheConfirmTitle,
+            isPresented: $isConfirmingCacheClear,
+            titleVisibility: .visible
+        ) {
+            Button(AppText.clearCacheConfirmAction, role: .destructive) {
+                clearCachesAndLocation()
+            }
+            Button(AppText.cancelAction, role: .cancel) {}
+        } message: {
+            Text(AppText.clearCacheConfirmMessage)
+        }
+    }
+
+    /// 隐私与存储（设计 15.2/16）：清除天气/节假日缓存与已保存
+    /// 位置；二次确认，结果以可恢复文案展示。
+    private var privacySection: some View {
+        Section(AppText.settingsPrivacySection) {
+            Button(AppText.clearCacheAndLocation) {
+                isConfirmingCacheClear = true
+            }
+            .disabled(isClearingCaches)
+
+            if let cacheClearResultText {
+                Text(cacheClearResultText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func clearCachesAndLocation() {
+        isClearingCaches = true
+        let weatherService = weatherService
+        let holidayService = holidayService
+        Task { @MainActor in
+            await weatherService.clearCache()
+            await holidayService.clearCachedData()
+            store.update {
+                $0.activeLocation = .defaultCity
+                $0.lastManualLocation = nil
+            }
+            cacheClearResultText = AppText.clearCacheDone
+            isClearingCaches = false
+        }
     }
 
     private var generalSection: some View {

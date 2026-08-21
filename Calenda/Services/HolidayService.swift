@@ -166,6 +166,15 @@ actor HolidayService: HolidayProviding {
         }
     }
 
+    /// “清除缓存与位置”（设计 13.4/16）：删除磁盘年度缓存与
+    /// 内存记录；内置快照不受影响，后续读取自然回退内置数据。
+    func clearCachedData() {
+        memory = [:]
+        availabilityOverrides = [:]
+        lastAttemptAt = [:]
+        cacheStore.removeAll()
+    }
+
     // MARK: - 本地取优（设计 10.2）
 
     /// 内置快照与通过校验的磁盘缓存互为候选，按新旧取优；

@@ -121,6 +121,16 @@
         }
       }
     },
+    "common.cancel": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消"
+          }
+        }
+      }
+    },
     "holiday.accessibility.off_day": {
       "localizations": {
         "zh-Hans": {
@@ -341,6 +351,56 @@
         }
       }
     },
+    "settings.clear_cache_confirm_action": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除"
+          }
+        }
+      }
+    },
+    "settings.clear_cache_confirm_message": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将删除天气与节假日磁盘缓存，并把城市重置为默认（北京）。显示偏好不受影响。"
+          }
+        }
+      }
+    },
+    "settings.clear_cache_confirm_title": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除缓存与位置？"
+          }
+        }
+      }
+    },
+    "settings.clear_cache_done": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已清除缓存并重置城市"
+          }
+        }
+      }
+    },
+    "settings.clear_cache_location": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除缓存与位置"
+          }
+        }
+      }
+    },
     "settings.login_item": {
       "localizations": {
         "zh-Hans": {
@@ -427,6 +487,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "节假日"
+          }
+        }
+      }
+    },
+    "settings.section.privacy": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐私与存储"
           }
         }
       }

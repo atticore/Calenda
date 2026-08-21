@@ -29,10 +29,22 @@ final class CalendaUITests: XCTestCase {
     override func setUp() {
         // 状态项按 accessibility label 跨进程匹配：单元测试宿主或手工
         // 启动的残留实例会让点击落到别的进程，面板在错误实例中打开。
-        // 测试启动前清理同名实例，保证本用例面对唯一的菜单栏项。
+        // 测试启动前清理同名实例并等待其真正退出——pkill 只表示
+        // 信号已发出；旧实例尚在退出途中时，新实例状态项的合成
+        // 点击可能被窗口服务器路由到垂死进程。
         let cleanup = Process()
-        cleanup.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
-        cleanup.arguments = ["-x", "Calenda"]
+        cleanup.executableURL = URL(fileURLWithPath: "/bin/sh")
+        cleanup.arguments = [
+            "-c",
+            "/usr/bin/pkill -x Calenda 2>/dev/null; "
+                + "for i in 1 2 3 4 5 6 7 8 9 10; do "
+                + "/usr/bin/pgrep -x Calenda >/dev/null || exit 0; "
+                + "/bin/sleep 0.3; done; "
+                + "/usr/bin/pkill -9 -x Calenda 2>/dev/null; "
+                + "for i in 1 2 3 4 5 6 7 8 9 10; do "
+                + "/usr/bin/pgrep -x Calenda >/dev/null || exit 0; "
+                + "/bin/sleep 0.3; done; exit 0",
+        ]
         try? cleanup.run()
         cleanup.waitUntilExit()
     }
@@ -54,9 +66,8 @@ final class CalendaUITests: XCTestCase {
             "Calendar panel did not appear"
         )
 
-        // 再次点击同一个可命中的状态项实例：toggle 关闭。
-        // 开面板触发焦点/Space 切换后，合成点击可能被静默丢弃：
-        // 循环「点击→短暂等待」，面板消失即止，避免固定单次重试的抖动。
+        // 再次点击可命中的状态项实例：toggle 关闭。开面板触发
+        // 焦点/Space 切换后合成点击可能被丢弃，循环重试至面板消失。
         let items = application.statusItems.matching(
             NSPredicate(format: "label == %@", Fixture.accessibilityLabel)
         )
@@ -78,29 +89,10 @@ final class CalendaUITests: XCTestCase {
                 Thread.sleep(forTimeInterval: Fixture.pollInterval)
             }
         }
-        if panelWindowExists(), statusItemSitsAbovePrimary(application) {
-            // 副屏位于主屏上方时，应用激活后其菜单栏项的合成点击
-            // 会被窗口服务器间歇性丢弃（本机已知几何），非应用缺陷。
-            application.terminate()
-            throw XCTSkip(
-                "Status item on display above primary; synthesized close "
-                    + "clicks are unreliable in this geometry"
-            )
-        }
         XCTAssertTrue(
             waitForPanel(visible: false, timeout: Fixture.pollInterval),
             "Calendar panel did not close after second click"
         )
-    }
-
-    /// 状态项 frame 的 minY 为负说明其菜单栏位于主屏上方的外接屏。
-    @MainActor
-    private func statusItemSitsAbovePrimary(
-        _ application: XCUIApplication
-    ) -> Bool {
-        application.statusItems.matching(
-            NSPredicate(format: "label == %@", Fixture.accessibilityLabel)
-        ).firstMatch.frame.minY < 0
     }
 
     /// 键盘关闭路径：Escape 经应用内本地监视器关闭面板（设计 5.3）。
@@ -235,21 +227,22 @@ final class CalendaUITests: XCTestCase {
 
     // MARK: - 面板存在性（窗口服务器层）
 
-    /// Calenda 的非零 layer 窗口只有浮动日历面板；状态项窗口
-    /// 属于 SystemUIServer，不会计入本查询。
+    /// Calenda 在屏的浮动层级窗口只有日历面板；状态项与菜单栏
+    /// 窗口层级不同，已 orderOut 的面板不会计入在屏查询。
     private func panelWindowExists() -> Bool {
         guard
             let list = CGWindowListCopyWindowInfo(
-                [.optionAll],
+                [.optionOnScreenOnly],
                 kCGNullWindowID
             ) as? [[String: Any]]
         else {
             return false
         }
+        // NSWindow.Level.floating 对应的 CG 层级为 3（NSFloatingWindowLevel）。
+        let floatingLevel = 3
         return list.contains { info in
             guard (info["kCGWindowOwnerName"] as? String) == "Calenda",
-                  let layer = info["kCGWindowLayer"] as? Int,
-                  layer > 0
+                  (info["kCGWindowLayer"] as? Int) == floatingLevel
             else {
                 return false
             }

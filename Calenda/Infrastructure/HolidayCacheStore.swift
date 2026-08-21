@@ -79,6 +79,23 @@ nonisolated struct HolidayCacheStore: Sendable {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 
+    /// 清除本目录下的年度缓存文件（设计 16）：只针对解析后的
+    /// 明确子目录，不使用宽泛路径或通配符。
+    func removeAll() {
+        let fileManager = FileManager.default
+        guard
+            let contents = try? fileManager.contentsOfDirectory(
+                at: directoryURL,
+                includingPropertiesForKeys: nil
+            )
+        else {
+            return
+        }
+        for url in contents where url.pathExtension == "json" {
+            try? fileManager.removeItem(at: url)
+        }
+    }
+
     private static func fileURL(for year: Int, in directory: URL) -> URL {
         directory.appendingPathComponent("\(year).json", isDirectory: false)
     }

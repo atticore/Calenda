@@ -465,6 +465,43 @@ enum AppText {
         defaultValue: "没有匹配的城市"
     )
 
+    // MARK: - 隐私与存储
+
+    static let settingsPrivacySection = String(
+        localized: "settings.section.privacy",
+        defaultValue: "隐私与存储"
+    )
+
+    static let clearCacheAndLocation = String(
+        localized: "settings.clear_cache_location",
+        defaultValue: "清除缓存与位置"
+    )
+
+    static let clearCacheConfirmTitle = String(
+        localized: "settings.clear_cache_confirm_title",
+        defaultValue: "清除缓存与位置？"
+    )
+
+    static let clearCacheConfirmMessage = String(
+        localized: "settings.clear_cache_confirm_message",
+        defaultValue: "将删除天气与节假日磁盘缓存，并把城市重置为默认（北京）。显示偏好不受影响。"
+    )
+
+    static let clearCacheConfirmAction = String(
+        localized: "settings.clear_cache_confirm_action",
+        defaultValue: "清除"
+    )
+
+    static let clearCacheDone = String(
+        localized: "settings.clear_cache_done",
+        defaultValue: "已清除缓存并重置城市"
+    )
+
+    static let cancelAction = String(
+        localized: "common.cancel",
+        defaultValue: "取消"
+    )
+
     // MARK: - 节假日设置
 
     static let settingsChineseHolidays = String(
