@@ -12,6 +12,26 @@
         }
       }
     },
+    "calendar.selected_date" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所选日期"
+          }
+        }
+      }
+    },
+    "calendar.solar_term_label" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "节气"
+          }
+        }
+      }
+    },
     "calendar.day.accessibility_label" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1278,6 +1298,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "网络超时，天气暂不可用"
+          }
+        }
+      }
+    },
+    "weather.disabled" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "天气已关闭"
           }
         }
       }

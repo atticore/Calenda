@@ -283,6 +283,16 @@ enum AppText {
         defaultValue: "日"
     )
 
+    static let selectedDate = String(
+        localized: "calendar.selected_date",
+        defaultValue: "所选日期"
+    )
+
+    static let solarTermLabel = String(
+        localized: "calendar.solar_term_label",
+        defaultValue: "节气"
+    )
+
     // MARK: - 节假日
 
     static let holidayOffBadge = String(
@@ -365,6 +375,11 @@ enum AppText {
     static let weatherLoading = String(
         localized: "weather.loading",
         defaultValue: "正在获取天气"
+    )
+
+    static let weatherDisabled = String(
+        localized: "weather.disabled",
+        defaultValue: "天气已关闭"
     )
 
     private static let weatherUpdatedAtFormat = String(

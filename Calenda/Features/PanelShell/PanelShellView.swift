@@ -18,29 +18,30 @@ struct PanelShellView: View {
         static let previousMonthOffset = -1
         static let nextMonthOffset = 1
         static let headerHeight: CGFloat = 44
-        static let detailWidth: CGFloat = 190
         static let headerHorizontalPadding: CGFloat = 18
-        static let detailHorizontalPadding: CGFloat = 16
+        static let detailHorizontalPadding: CGFloat = 14
         static let detailVerticalPadding: CGFloat = 8
-        static let dateNumberFontSize: CGFloat = 62
-        static let daySuffixFontSize: CGFloat = 26
+        static let dateNumberFontSize: CGFloat = 50
+        static let daySuffixFontSize: CGFloat = 19
         static let headerDividerOpacity = 0.08
-        static let titleChevronSpacing: CGFloat = 7
-        static let dateDetailSpacing: CGFloat = 4
-        static let selectedDayHeaderHeight: CGFloat = 94
+        static let titleChevronSpacing: CGFloat = 4
+        static let dateDetailSpacing: CGFloat = 3
+        static let selectedDayHeaderHeight: CGFloat = 90
         static let lunarInformationSlotHeight: CGFloat = 20
-        static let secondaryInformationSlotHeight: CGFloat = 15
+        static let secondaryInformationSlotHeight: CGFloat = 18
         static let todaySectionTopPadding: CGFloat = 10
+        static let todaySectionDividerHeight: CGFloat = 10
+        static let todaySectionDividerOpacity = 0.12
         static let todayTitleSlotHeight: CGFloat = 20
         static let weatherSlotHeight: CGFloat = 80
-        static let todaySolarTermSlotHeight: CGFloat = 22
-        static let attributionSlotHeight: CGFloat = 16
+        static let todaySolarTermSlotHeight: CGFloat = 28
+        static let attributionSlotHeight: CGFloat = 14
         static let navigationSpacing: CGFloat = 0
         static let settingsSpacing: CGFloat = 18
         static let headerControlSize: CGFloat = 28
         static let todayHorizontalPadding: CGFloat = 10
-        static let monthChevronFontSize: CGFloat = 13
-        static let monthChevronOpacity = 0.65
+        static let monthChevronFontSize: CGFloat = 12
+        static let todayTitleAccessibilityIdentifier = "calendar.detail.today-title"
     }
 
     private let model: AppModel
@@ -95,6 +96,7 @@ struct PanelShellView: View {
                             format: .dateTime.year().month(.wide)
                         )
                         .font(.title3.weight(.semibold))
+                        .monospacedDigit()
                         Image(systemName: Presentation.monthPickerSymbol)
                             .font(
                                 .system(
@@ -102,15 +104,14 @@ struct PanelShellView: View {
                                     weight: .semibold
                                 )
                             )
-                            .foregroundStyle(
-                                Color.secondary.opacity(
-                                    Presentation.monthChevronOpacity
-                                )
-                            )
+                            .foregroundStyle(.tertiary)
                     }
+                    .padding(.horizontal, Presentation.todayHorizontalPadding)
+                    .frame(height: Presentation.headerControlSize)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .focusEffectDisabled()
+                .toolbarHoverEffect()
                 .accessibilityLabel(AppText.openMonthPicker)
                 .help(AppText.openMonthPicker)
                 .popover(isPresented: $isMonthPickerPresented) {
@@ -225,7 +226,7 @@ struct PanelShellView: View {
         }
         .padding(.horizontal, Presentation.detailHorizontalPadding)
         .padding(.vertical, Presentation.detailVerticalPadding)
-        .frame(width: Presentation.detailWidth)
+        .frame(width: PanelConfiguration.detailColumnWidth)
         .frame(maxHeight: .infinity, alignment: .topLeading)
     }
 
@@ -249,54 +250,71 @@ struct PanelShellView: View {
                             )
                         )
                 }
-                .foregroundStyle(Color.accentColor)
-                Text(selectedDate, format: .dateTime.year().month())
+                .foregroundStyle(.primary)
+                Text(selectedDate, format: .dateTime.weekday(.wide))
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.secondary)
             }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(selectedDateAccessibilityLabel)
     }
 
     @ViewBuilder
     private var todaySummary: some View {
         VStack(alignment: .leading, spacing: .zero) {
-            Text(AppText.today)
+            Divider()
+                .opacity(Presentation.todaySectionDividerOpacity)
+                .frame(height: 1)
+                .padding(.bottom, Presentation.todaySectionDividerHeight - 1)
+            Text(todayTitleText)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .accessibilityIdentifier(
+                    Presentation.todayTitleAccessibilityIdentifier
+                )
                 .frame(
                     height: Presentation.todayTitleSlotHeight,
                     alignment: .topLeading
                 )
-            // 天气关闭时槽位整体塌陷，不留固定空白；
-            // 开启时保持固定高度避免加载态与内容态之间跳动。
-            if model.isWeatherEnabled {
-                WeatherStatusView(
-                    state: model.weatherState,
-                    unit: model.temperatureUnit,
-                    useCurrentLocation: model.useCurrentLocation,
-                    isResolvingLocation: model.isResolvingCurrentLocation,
-                    cityPicker: cityPicker
-                )
-                .frame(
-                    height: Presentation.weatherSlotHeight,
-                    alignment: .topLeading
-                )
-            }
-            informationSlot(height: Presentation.todaySolarTermSlotHeight) {
-                if let todaySolarTermText {
-                    Text(todaySolarTermText)
-                        .font(.subheadline.weight(.semibold))
+            informationSlot(height: Presentation.weatherSlotHeight) {
+                if model.isWeatherEnabled {
+                    WeatherStatusView(
+                        state: model.weatherState,
+                        unit: model.temperatureUnit,
+                        useCurrentLocation: model.useCurrentLocation,
+                        isResolvingLocation: model.isResolvingCurrentLocation,
+                        cityPicker: cityPicker
+                    )
+                } else {
+                    Text(AppText.weatherDisabled)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
             }
-            if model.isWeatherEnabled {
-                WeatherAttributionView()
-                    .frame(
-                        height: Presentation.attributionSlotHeight,
-                        alignment: .bottomLeading
-                    )
+            informationSlot(height: Presentation.todaySolarTermSlotHeight) {
+                if let todaySolarTermText {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(AppText.solarTermLabel)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        Text(todaySolarTermText)
+                            .font(.footnote.weight(.medium))
+                            .foregroundStyle(.primary)
+                    }
+                    .lineLimit(1)
+                    .padding(.top, 4)
+                }
+            }
+            informationSlot(height: Presentation.attributionSlotHeight) {
+                if model.isWeatherEnabled {
+                    WeatherAttributionView()
+                }
             }
         }
+        .accessibilityElement(children: .contain)
     }
 
     private var calendarInformation: some View {
@@ -362,12 +380,32 @@ struct PanelShellView: View {
             return nil
         }
         if let solarTermName = lunar.solarTermName {
-            return AppText.todaySolarTerm(solarTermName)
+            return solarTermName
         }
         return AppText.todaySolarTermDistance(
             lunar.nextSolarTerm.name,
             lunar.nextSolarTerm.daysRemaining
         )
+    }
+
+    private var todayTitleText: String {
+        guard let todayDate = model.referenceDate(for: model.today) else {
+            return AppText.today
+        }
+        let formattedDate = todayDate.formatted(
+            .dateTime.month().day().locale(locale)
+        )
+        return "\(AppText.today) · \(formattedDate)"
+    }
+
+    private var selectedDateAccessibilityLabel: String {
+        guard let selectedDate else {
+            return AppText.selectedDate
+        }
+        let formattedDate = selectedDate.formatted(
+            .dateTime.year().month().day().weekday(.wide).locale(locale)
+        )
+        return "\(AppText.selectedDate)，\(formattedDate)"
     }
 
     private func openMonthPicker() {

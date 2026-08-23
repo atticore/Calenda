@@ -33,6 +33,7 @@ final class CalendaUITests: XCTestCase {
         static let weatherOfflineText = "网络不可用，天气暂不可用"
         static let openSettingsLabel = "设置"
         static let settingsWindowTitle = "设置"
+        static let todayTitleIdentifier = "calendar.detail.today-title"
     }
 
     override class func setUp() {
@@ -158,10 +159,12 @@ final class CalendaUITests: XCTestCase {
 
         let application = XCUIApplication()
         application.launchEnvironment["CALENDA_DISABLE_NETWORK_REFRESH"] = "1"
+        // 此用例验证面板内容而非状态项点击。使用会话级默认城市并
+        // 直接打开面板，隔离用户保存的位置偏好和重复状态项实例。
+        application.launchEnvironment["CALENDA_UI_TEST_USE_DEFAULT_CITY"] = "1"
+        application.launchEnvironment["CALENDA_UI_TEST_OPEN_PANEL"] = "1"
         application.launch()
         application.activate()
-
-        try openPanelByRealClick(application)
 
         XCTAssertTrue(
             waitForPanel(visible: true, timeout: Fixture.existenceTimeout),
@@ -176,6 +179,12 @@ final class CalendaUITests: XCTestCase {
             monthPickerButton.waitForExistence(timeout: Fixture.existenceTimeout),
             "Month picker button is not exposed to accessibility"
         )
+        let todayButton = application.buttons["今天"]
+        XCTAssertTrue(
+            todayButton.waitForExistence(timeout: Fixture.existenceTimeout),
+            "Today navigation button is not exposed"
+        )
+        let initialTodayButtonMinX = todayButton.frame.minX
         monthPickerButton.click()
 
         let previousYearButton = application.buttons[Fixture.previousYearLabel]
@@ -191,6 +200,19 @@ final class CalendaUITests: XCTestCase {
             "Month picker did not present October"
         )
         octoberButton.click()
+        XCTAssertEqual(
+            todayButton.frame.minX,
+            initialTodayButtonMinX,
+            accuracy: 0.5,
+            "Changing the month title must not move the trailing toolbar"
+        )
+
+        let todayTitle = application.staticTexts[Fixture.todayTitleIdentifier]
+        XCTAssertTrue(
+            todayTitle.waitForExistence(timeout: Fixture.existenceTimeout),
+            "Today summary title is not exposed"
+        )
+        let todayTitleMinY = todayTitle.frame.minY
 
         // 锚点日的日格标签包含具体节日名（徽标并入无障碍标签）
         XCTAssertTrue(
@@ -235,12 +257,24 @@ final class CalendaUITests: XCTestCase {
                 .waitForExistence(timeout: Fixture.existenceTimeout),
             "10/1 detail line should read 国庆节 · 休"
         )
+        XCTAssertEqual(
+            todayTitle.frame.minY,
+            todayTitleMinY,
+            accuracy: 0.5,
+            "Selected-date holiday content must not move the today section"
+        )
         // 中间日一次只归属一个节日：不晚于当天最近的锚点 + 假期 + 休
         anchorCell(application, dayText: "10 月 3 日").click()
         XCTAssertTrue(
             application.staticTexts[Fixture.nationalDayVacationDetail]
                 .waitForExistence(timeout: Fixture.existenceTimeout),
             "10/3 detail line should read 国庆节假期 · 休"
+        )
+        XCTAssertEqual(
+            todayTitle.frame.minY,
+            todayTitleMinY,
+            accuracy: 0.5,
+            "Changing selected-date detail must not move the today section"
         )
         // 中秋锚点之后的中间日归属中秋节
         anchorCell(application, dayText: "10 月 7 日").click()
@@ -249,6 +283,17 @@ final class CalendaUITests: XCTestCase {
                 .waitForExistence(timeout: Fixture.existenceTimeout),
             "10/7 detail line should read 中秋节假期 · 休"
         )
+        XCTAssertEqual(
+            todayTitle.frame.minY,
+            todayTitleMinY,
+            accuracy: 0.5,
+            "Selected-date content changes must preserve the today anchor"
+        )
+
+        let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        screenshot.name = "Optimized calendar panel detail layout"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
 
         application.terminate()
     }

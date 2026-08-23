@@ -8,8 +8,9 @@
 import AppKit
 
 enum PanelConfiguration {
-    /// 紧凑菜单栏面板：为日期格保留足够命中区域，同时避免占据过多桌面。
-    static let contentSize = CGSize(width: 610, height: 370)
+    /// 右栏与总宽同步收窄，月历网格仍保留原有宽度和命中区域。
+    static let detailColumnWidth: CGFloat = 160
+    static let contentSize = CGSize(width: 590, height: 370)
     static let cornerRadius: CGFloat = 18
     static let collectionBehavior: NSWindow.CollectionBehavior = [
         .canJoinAllSpaces,

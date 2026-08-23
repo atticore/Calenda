@@ -1,12 +1,48 @@
 # Calenda
 
-仅驻留在 macOS 菜单栏的原生日历工具：公历月历、农历、节气、中国法定节假日与天气（规划中）。
-设计方案见 [DESIGN.md](DESIGN.md)。
+Calenda 是仅驻留在 macOS 菜单栏的原生日历工具。它在一个紧凑的原生
+面板中提供公历月历、农历、节气、中国法定节假日、调休与当前天气。
+
+设计背景和架构说明见 [DESIGN.md](DESIGN.md)；当前面板尺寸与布局常量
+以 [PanelConfiguration.swift](Calenda/AppKitShell/PanelConfiguration.swift)
+和 SwiftUI 实现为准。
+
+## 主要功能
+
+- 公历月历，以及周一/周日起始设置
+- 农历日期、农历节日和二十四节气
+- 中国法定节假日、调休标记与离线内置快照
+- Open-Meteo 当前天气、缓存、手动选城与按需定位
+- 键盘日期导航、月份选择器、回到今天和 Escape 关闭
+- 原生菜单栏状态项、设置窗口、多显示器与 Spaces 支持
+
+## 面板布局
+
+当前面板内容尺寸为 590 × 370 pt，保持固定、紧凑且适合菜单栏快速查看：
+
+- 左侧月历保留稳定宽度，日期格不会因右栏调整而缩小。
+- 右侧详情栏宽 160 pt。
+- 选中日期固定在右上，显示日期数字、星期、农历、节气或节假日。
+- 中部为选中日期的扩展信息预留固定槽位。
+- “今天”的天气和节气固定在右下，不随选中日期变化。
+- 可选内容和天气状态使用固定高度，避免界面上下跳动。
+
+年月选择器、今天按钮与城市选择均提供符合 macOS 习惯的悬浮反馈；
+悬浮背景和实际点击区域保持一致，城市入口不会铺满整行。
+
+## 离线与隐私
+
+公历、农历和节气可完全离线使用。节假日和天气不可用时会显示缓存、
+最后一次有效数据或明确的降级状态，不会阻止月历显示。
+
+位置权限是可选的。用户可以独立使用默认北京或手动选择城市；只有主动
+选择“使用当前位置”时才需要位置能力。应用不包含账号、分析或遥测。
 
 ## 系统要求
 
 - macOS 26+
-- Xcode 26+（稳定版，含 macOS 26 SDK）
+- Xcode 27 beta 5+
+- Swift 6.4 编译器，Swift 6 语言模式
 
 ## 构建与测试
 
@@ -15,8 +51,17 @@ xcodebuild -project Calenda.xcodeproj -scheme Calenda \
   -configuration Debug -destination 'platform=macOS' build
 
 xcodebuild -project Calenda.xcodeproj -scheme Calenda \
-  -destination 'platform=macOS' test
+  -configuration Debug -destination 'platform=macOS' \
+  -parallel-testing-enabled NO test -only-testing:CalendaTests
+
+xcodebuild -project Calenda.xcodeproj -scheme Calenda \
+  -configuration Debug -destination 'platform=macOS' \
+  -parallel-testing-enabled NO test \
+  -only-testing:CalendaUITests/CalendaUITests/testCombinedHolidayNamesOnlyAnchorsInDayCells
 ```
+
+布局 UI 测试会验证：切换月份时右侧工具栏不移动；选择具有不同节假日
+内容的日期时，“今天”区域不移动；并保存最终面板截图供视觉检查。
 
 ## 实施进度
 

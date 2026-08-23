@@ -15,17 +15,22 @@ struct WeatherView: View {
     private enum Appearance {
         static let iconFontSize: CGFloat = 22
         static let temperatureFontSize: CGFloat = 26
-        static let spacing: CGFloat = 6
         static let iconTemperatureSpacing: CGFloat = 7
         static let cityChevronSpacing: CGFloat = 3
         static let cityChevronFontSize: CGFloat = 8
         static let cityChevronSymbol = "chevron.down"
+        static let primaryRowHeight: CGFloat = 34
+        static let secondaryRowHeight: CGFloat = 23
+        static let cityRowHeight: CGFloat = 23
+        static let cityHoverCornerRadius: CGFloat = 5
+        static let cityHoverOpacity = 0.08
     }
 
     private let snapshot: WeatherSnapshot
     private let unit: TemperatureUnit
     private let cityPicker: CityPickerActions?
     @State private var isCityPickerPresented = false
+    @State private var isCityHovering = false
 
     init(
         snapshot: WeatherSnapshot,
@@ -39,7 +44,7 @@ struct WeatherView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Appearance.spacing) {
+        VStack(alignment: .leading, spacing: .zero) {
             HStack(alignment: .center, spacing: Appearance.iconTemperatureSpacing) {
                 Image(
                     systemName: snapshot.condition.symbolName(
@@ -62,13 +67,25 @@ struct WeatherView: View {
                 .monospacedDigit()
             }
             .foregroundStyle(.primary)
+            .frame(
+                height: Appearance.primaryRowHeight,
+                alignment: .leading
+            )
 
             Text(conditionSummary)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
+                .frame(
+                    height: Appearance.secondaryRowHeight,
+                    alignment: .topLeading
+                )
 
             cityRow
+                .frame(
+                    height: Appearance.cityRowHeight,
+                    alignment: .topLeading
+                )
         }
         .accessibilityElement(children: .contain)
     }
@@ -95,6 +112,9 @@ struct WeatherView: View {
                 HStack(spacing: Appearance.cityChevronSpacing) {
                     Text(cityDisplayName)
                         .font(.footnote.weight(.medium))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .layoutPriority(1)
                     Image(systemName: Appearance.cityChevronSymbol)
                         .font(
                             .system(
@@ -104,8 +124,24 @@ struct WeatherView: View {
                         )
                         .foregroundStyle(.tertiary)
                 }
+                .padding(.horizontal, 6)
+                .frame(height: 22)
+                .fixedSize(horizontal: true, vertical: false)
+                .contentShape(
+                    RoundedRectangle(cornerRadius: Appearance.cityHoverCornerRadius)
+                )
+                .background(
+                    RoundedRectangle(cornerRadius: Appearance.cityHoverCornerRadius)
+                        .fill(
+                            Color.primary.opacity(
+                                isCityHovering ? Appearance.cityHoverOpacity : 0
+                            )
+                        )
+                )
             }
             .buttonStyle(.plain)
+            .padding(.leading, -6)
+            .onHover { isCityHovering = $0 }
             .help(AppText.chooseCity)
             .accessibilityLabel(AppText.chooseCity)
             .accessibilityValue(cityDisplayName)
@@ -120,6 +156,8 @@ struct WeatherView: View {
         } else {
             Text(cityDisplayName)
                 .font(.footnote.weight(.medium))
+                .lineLimit(1)
+                .truncationMode(.tail)
         }
     }
 
@@ -133,15 +171,25 @@ struct WeatherAttributionView: View {
         static let attributionURL = URL(string: "https://open-meteo.com")!
     }
 
+    @State private var isHovering = false
+
     var body: some View {
         Link(AppText.weatherAttribution, destination: Appearance.attributionURL)
             .font(.caption2)
-            .foregroundStyle(.tertiary)
+            .foregroundStyle(.secondary)
+            .underline(isHovering)
+            .onHover { isHovering = $0 }
     }
 }
 
 /// 非成功状态下的天气占位（loading / 失败 / 禁用）。
 struct WeatherStatusView: View {
+    private enum Layout {
+        static let primaryRowHeight: CGFloat = 34
+        static let secondaryRowHeight: CGFloat = 23
+        static let actionRowHeight: CGFloat = 23
+    }
+
     private let state: Loadable<WeatherSnapshot>
     private let unit: TemperatureUnit
     private let useCurrentLocation: (() -> Void)?
@@ -165,7 +213,13 @@ struct WeatherStatusView: View {
 
     var body: some View {
         if isResolvingLocation {
-            locationLoading
+            statusRows {
+                locationLoading
+            } secondary: {
+                EmptyView()
+            } action: {
+                EmptyView()
+            }
         } else {
             weatherContent
         }
@@ -175,7 +229,13 @@ struct WeatherStatusView: View {
     private var weatherContent: some View {
         switch state {
         case .idle:
-            EmptyView()
+            statusRows {
+                EmptyView()
+            } secondary: {
+                EmptyView()
+            } action: {
+                EmptyView()
+            }
         case let .loading(previous):
             if let previous {
                 WeatherView(
@@ -185,19 +245,23 @@ struct WeatherStatusView: View {
                     cityPicker: cityPicker
                 )
             } else {
-                HStack(spacing: Appearance.loadingSpacing) {
-                    ProgressView()
-                        .controlSize(.small)
-                    label(AppText.weatherLoading)
+                statusRows {
+                    HStack(spacing: Appearance.loadingSpacing) {
+                        ProgressView()
+                            .controlSize(.small)
+                        label(AppText.weatherLoading)
+                    }
+                } secondary: {
+                    EmptyView()
+                } action: {
+                    EmptyView()
                 }
             }
         case let .failed(previous, error):
-            VStack(alignment: .leading, spacing: 2) {
+            statusRows {
                 label(AppText.weatherUnavailableText(error))
-                if error == .locationUnavailable {
-                    locationHint
-                }
-                chooseCityEntry
+                    .lineLimit(1)
+            } secondary: {
                 if let previous {
                     Text(
                         AppText.weatherUpdatedAt(
@@ -206,8 +270,17 @@ struct WeatherStatusView: View {
                         )
                     )
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
                 }
+            } action: {
+                HStack(spacing: 8) {
+                    if error == .locationUnavailable {
+                        locationHint
+                    }
+                    chooseCityEntry
+                }
+                .lineLimit(1)
             }
         case let .loaded(snapshot, freshness):
             WeatherView(
@@ -227,6 +300,27 @@ struct WeatherStatusView: View {
         }
     }
 
+    private func statusRows<Primary: View, Secondary: View, Action: View>(
+        @ViewBuilder primary: () -> Primary,
+        @ViewBuilder secondary: () -> Secondary,
+        @ViewBuilder action: () -> Action
+    ) -> some View {
+        VStack(alignment: .leading, spacing: .zero) {
+            ZStack(alignment: .leading) {
+                primary()
+            }
+            .frame(height: Layout.primaryRowHeight, alignment: .leading)
+            ZStack(alignment: .topLeading) {
+                secondary()
+            }
+            .frame(height: Layout.secondaryRowHeight, alignment: .topLeading)
+            ZStack(alignment: .topLeading) {
+                action()
+            }
+            .frame(height: Layout.actionRowHeight, alignment: .topLeading)
+        }
+    }
+
     /// 定位不可用或仍展示默认城市时提供手动切到当前位置的入口
     ///（设计 11.1/11.3：权限只由用户显式操作触发）。
     @ViewBuilder
@@ -239,6 +333,7 @@ struct WeatherStatusView: View {
             Text(AppText.locationDeniedHint)
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
+                .lineLimit(1)
         }
     }
 

@@ -16,7 +16,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ShellActions {
     private var appMenuCoordinator: AppMenuCoordinator?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let settingsStore = SettingsStore()
+        let usesDefaultCityForUITesting = ProcessInfo.processInfo.environment[
+            "CALENDA_UI_TEST_USE_DEFAULT_CITY"
+        ] == "1"
+        let settingsStore = SettingsStore { settings in
+            // 仅覆盖当前进程，不写回用户设置；布局测试因此不会被用户
+            // 保存的“当前位置”偏好和系统定位权限弹窗干扰。
+            if usesDefaultCityForUITesting {
+                settings.activeLocation = .defaultCity
+            }
+        }
         self.settingsStore = settingsStore
 
         // 同一 HolidayService / WeatherService / LocationService 实例供

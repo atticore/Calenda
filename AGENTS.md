@@ -318,6 +318,66 @@ Do not use custom icons merely to mimic an available SF Symbol.
 
 ---
 
+## Calendar Panel Layout
+
+Treat the compact panel geometry as a coordinated system rather than a set of
+independent widths. The current baseline is:
+
+- panel content size: 590 × 370 pt
+- detail column width: 160 pt
+- detail horizontal padding: 14 pt
+- header height: 44 pt
+- header control height: 28 pt
+
+`PanelConfiguration` is the source of truth for the panel size and detail
+column width. Do not duplicate those values in SwiftUI views. When removing
+unused space from the detail column, change the panel width and detail width by
+the same amount unless the calendar grid is intentionally being redesigned.
+This keeps the calendar grid width and date-cell hit regions stable.
+
+The detail column has three semantic regions:
+
+1. The selected date is anchored at the top.
+2. Selected-date lunar, solar-term, holiday, and future contextual content use
+   reserved slots in the middle.
+3. Today's weather and solar term are anchored at the bottom.
+
+Do not let optional content collapse these regions. Loading, success, failure,
+disabled, holiday, and no-holiday states must occupy stable slots so selecting
+a different day or completing a weather request does not move the lower
+section vertically.
+
+Presentation hierarchy:
+
+- The selected date uses a large day number plus `日`, followed by the weekday.
+- Do not repeat year/month beside the selected date when the month header
+  already provides that context.
+- Selected-date lunar/holiday/solar-term information belongs to the middle
+  region and follows the selected date.
+- Weather and the lower solar-term summary always describe today. They must not
+  change when the selected date changes.
+- Today's solar-term label and value are supplementary information. Keep them
+  at footnote scale; use color and weight, not a larger font, to separate label
+  from value.
+
+Pointer and hover rules:
+
+- A hover background and its hit region must cover the same geometry.
+- The month picker uses the same 28 pt control height and horizontal breathing
+  room as the Today button. Keep the chevron close to the title; do not reserve
+  a fixed text width that creates a large title-to-chevron gap.
+- A compact inline action such as the weather city picker must hover around its
+  label and chevron only. Do not stretch its hover background across the detail
+  column.
+- Preserve keyboard focus and accessibility semantics when using a plain button
+  style or custom hover treatment.
+
+Any change to panel size, column width, fixed slots, or pointer geometry
+requires a live panel screenshot. A SwiftUI Preview or successful compile is
+not sufficient.
+
+---
+
 ## Accessibility
 
 For interactive UI changes, consider:
@@ -395,3 +455,36 @@ Useful CLI commands:
 
 ```bash
 xcodebuild -list -project Calenda.xcodeproj
+
+xcodebuild -project Calenda.xcodeproj -scheme Calenda \
+  -configuration Debug -destination 'platform=macOS' build
+
+xcodebuild -project Calenda.xcodeproj -scheme Calenda \
+  -configuration Debug -destination 'platform=macOS' \
+  -parallel-testing-enabled NO test -only-testing:CalendaTests
+
+xcodebuild -project Calenda.xcodeproj -scheme Calenda \
+  -configuration Debug -destination 'platform=macOS' \
+  -parallel-testing-enabled NO test \
+  -only-testing:CalendaUITests/CalendaUITests/testCombinedHolidayNamesOnlyAnchorsInDayCells
+```
+
+Use serial unit-test execution for deterministic local verification of the
+current async test suite. A parallel-only failure must be rerun in isolation or
+serially before treating it as a product regression.
+
+For layout UI tests:
+
+- open the panel through the existing UI-test injection when the test is about
+  content rather than status-item click behavior
+- apply test-only location/settings overrides in memory; do not persist over
+  the user's defaults
+- avoid system location prompts and remote availability as test prerequisites
+- assert that trailing toolbar controls keep their horizontal anchor
+- assert that the Today section keeps its vertical anchor across selected dates
+  with different optional content
+- save and inspect a final screenshot attachment
+
+If Xcode leaves a partially signed test bundle in DerivedData, run
+`xcodebuild ... clean` once and rebuild. Never change signing, entitlements, or
+the project identity to work around a local test-artifact failure.

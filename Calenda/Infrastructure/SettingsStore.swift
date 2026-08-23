@@ -44,9 +44,14 @@ final class SettingsStore: SettingsProviding {
     private let defaults: UserDefaults
     private(set) var settings: AppSettings
 
-    init(defaults: UserDefaults = .standard) {
+    init(
+        defaults: UserDefaults = .standard,
+        sessionOverride: ((inout AppSettings) -> Void)? = nil
+    ) {
         self.defaults = defaults
-        settings = Self.load(from: defaults)
+        var loaded = Self.load(from: defaults)
+        sessionOverride?(&loaded)
+        settings = loaded
     }
 
     func update(_ mutation: (inout AppSettings) -> Void) {
