@@ -568,3 +568,63 @@ struct LastManualLocationPersistenceTests {
         #expect(store.settings.lastManualLocation == nil)
     }
 }
+
+// MARK: - 手动城市消歧
+
+@Suite
+struct ManualCityRegionTests {
+    @Test
+    func regionDetailDisambiguatesSameNamePlaces() {
+        // 直辖市：一二级同名去重，国家用本地化名
+        let metropolis = ManualCity(
+            name: "上海",
+            admin1: "上海市",
+            countryCode: "CN",
+            latitude: 31.22222,
+            longitude: 121.45806,
+            timezone: "Asia/Shanghai",
+            admin2: "上海市",
+            country: "中国"
+        )
+        #expect(metropolis.regionDetail == "上海市 · 中国")
+
+        // 同名小居民点：带出二级行政区，避免读作“上海属于云南”
+        let village = ManualCity(
+            name: "上海",
+            admin1: "云南",
+            countryCode: "CN",
+            latitude: 27.0741,
+            longitude: 100.107,
+            timezone: "Asia/Shanghai",
+            admin2: "丽江市",
+            country: "中国"
+        )
+        #expect(village.regionDetail == "云南 · 丽江市 · 中国")
+
+        // 旧数据缺省字段：本地化国家名缺失时退化为仅一级行政区
+        let legacy = ManualCity(
+            name: "上海",
+            admin1: "上海市",
+            countryCode: "CN",
+            latitude: 31.22222,
+            longitude: 121.45806,
+            timezone: "Asia/Shanghai"
+        )
+        #expect(legacy.regionDetail == "上海市")
+    }
+
+    @Test
+    func decodesLegacyManualCityWithoutOptionalRegionFields() throws {
+        let json = """
+        {"name":"上海","admin1":"上海市","countryCode":"CN",
+        "latitude":31.2,"longitude":121.4,"timezone":"Asia/Shanghai"}
+        """
+        let city = try JSONDecoder().decode(
+            ManualCity.self,
+            from: Data(json.utf8)
+        )
+        #expect(city.admin2 == "")
+        #expect(city.country == "")
+        #expect(city.name == "上海")
+    }
+}

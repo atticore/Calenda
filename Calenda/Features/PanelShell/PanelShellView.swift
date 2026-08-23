@@ -45,16 +45,19 @@ struct PanelShellView: View {
 
     private let model: AppModel
     private let openSettings: () -> Void
+    private let cityPicker: CityPickerActions?
     private let locale = Locale(identifier: Presentation.localeIdentifier)
     @State private var isMonthPickerPresented = false
     @State private var pickerYear: Int
 
     init(
         model: AppModel,
-        openSettings: @escaping () -> Void = {}
+        openSettings: @escaping () -> Void = {},
+        cityPicker: CityPickerActions? = nil
     ) {
         self.model = model
         self.openSettings = openSettings
+        self.cityPicker = cityPicker
         _pickerYear = State(initialValue: model.displayedMonth.year)
     }
 
@@ -109,6 +112,7 @@ struct PanelShellView: View {
                 .buttonStyle(.plain)
                 .focusEffectDisabled()
                 .accessibilityLabel(AppText.openMonthPicker)
+                .help(AppText.openMonthPicker)
                 .popover(isPresented: $isMonthPickerPresented) {
                     MonthPickerView(
                         year: $pickerYear,
@@ -138,19 +142,27 @@ struct PanelShellView: View {
                     model.moveDisplayedMonth(by: Presentation.previousMonthOffset)
                 }
             ) {
+                // 命中区域必须与悬浮区域一致：frame 与 contentShape
+                // 放进 label，而不是包在按钮外
                 Image(systemName: Presentation.previousMonthSymbol)
+                    .frame(
+                        width: Presentation.headerControlSize,
+                        height: Presentation.headerControlSize
+                    )
+                    .contentShape(Rectangle())
             }
-            .frame(
-                width: Presentation.headerControlSize,
-                height: Presentation.headerControlSize
-            )
             .toolbarHoverEffect()
             .accessibilityLabel(AppText.previousMonth)
+            .help(AppText.previousMonth)
 
-            Button(AppText.today, action: model.returnToToday)
-                .padding(.horizontal, Presentation.todayHorizontalPadding)
-                .frame(height: Presentation.headerControlSize)
-                .toolbarHoverEffect()
+            Button(action: model.returnToToday) {
+                Text(AppText.today)
+                    .padding(.horizontal, Presentation.todayHorizontalPadding)
+                    .frame(height: Presentation.headerControlSize)
+                    .contentShape(Rectangle())
+            }
+            .toolbarHoverEffect()
+            .help(AppText.returnToToday)
 
             Button(
                 action: {
@@ -158,13 +170,15 @@ struct PanelShellView: View {
                 }
             ) {
                 Image(systemName: Presentation.nextMonthSymbol)
+                    .frame(
+                        width: Presentation.headerControlSize,
+                        height: Presentation.headerControlSize
+                    )
+                    .contentShape(Rectangle())
             }
-            .frame(
-                width: Presentation.headerControlSize,
-                height: Presentation.headerControlSize
-            )
             .toolbarHoverEffect()
             .accessibilityLabel(AppText.nextMonth)
+            .help(AppText.nextMonth)
         }
         .buttonStyle(.plain)
     }
@@ -177,10 +191,12 @@ struct PanelShellView: View {
                     width: Presentation.headerControlSize,
                     height: Presentation.headerControlSize
                 )
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .toolbarHoverEffect()
         .accessibilityLabel(AppText.openSettings)
+        .help(AppText.openSettings)
     }
 
     private var content: some View {
@@ -202,8 +218,10 @@ struct PanelShellView: View {
                     alignment: .topLeading
                 )
             calendarInformation
+            // “今天”区块固定在底部：选中日期的节气/节假日出现与否
+            // 只在自己的固定槽位内呈现，不再推动下方内容
+            Spacer(minLength: Presentation.todaySectionTopPadding)
             todaySummary
-                .padding(.top, Presentation.todaySectionTopPadding)
         }
         .padding(.horizontal, Presentation.detailHorizontalPadding)
         .padding(.vertical, Presentation.detailVerticalPadding)
@@ -249,93 +267,86 @@ struct PanelShellView: View {
                     height: Presentation.todayTitleSlotHeight,
                     alignment: .topLeading
                 )
-            Group {
-                if model.isWeatherEnabled {
-                    WeatherStatusView(
-                        state: model.weatherState,
-                        unit: model.temperatureUnit,
-                        useCurrentLocation: model.useCurrentLocation,
-                        isResolvingLocation: model.isResolvingCurrentLocation
-                    )
-                }
+            // 天气关闭时槽位整体塌陷，不留固定空白；
+            // 开启时保持固定高度避免加载态与内容态之间跳动。
+            if model.isWeatherEnabled {
+                WeatherStatusView(
+                    state: model.weatherState,
+                    unit: model.temperatureUnit,
+                    useCurrentLocation: model.useCurrentLocation,
+                    isResolvingLocation: model.isResolvingCurrentLocation,
+                    cityPicker: cityPicker
+                )
+                .frame(
+                    height: Presentation.weatherSlotHeight,
+                    alignment: .topLeading
+                )
             }
-            .frame(
-                height: Presentation.weatherSlotHeight,
-                alignment: .topLeading
-            )
-            Group {
+            informationSlot(height: Presentation.todaySolarTermSlotHeight) {
                 if let todaySolarTermText {
                     Text(todaySolarTermText)
                         .font(.subheadline.weight(.semibold))
                         .lineLimit(1)
                 }
             }
-            .frame(
-                height: Presentation.todaySolarTermSlotHeight,
-                alignment: .topLeading
-            )
-            Spacer(minLength: .zero)
-            Group {
-                if model.isWeatherEnabled {
-                    WeatherAttributionView()
-                }
+            if model.isWeatherEnabled {
+                WeatherAttributionView()
+                    .frame(
+                        height: Presentation.attributionSlotHeight,
+                        alignment: .bottomLeading
+                    )
             }
-            .frame(
-                height: Presentation.attributionSlotHeight,
-                alignment: .bottomLeading
-            )
         }
-        .frame(maxHeight: .infinity, alignment: .topLeading)
     }
 
     private var calendarInformation: some View {
         let selectedLunar = model.lunarInformation(for: model.selectedDay)
         return VStack(alignment: .leading, spacing: .zero) {
-            Group {
+            informationSlot(height: Presentation.lunarInformationSlotHeight) {
                 if let selectedLunar, model.showsLunar {
                     Text(selectedLunar.fullDate)
                         .font(.subheadline.weight(.medium))
                         .lineLimit(1)
                 }
             }
-            .frame(
-                height: Presentation.lunarInformationSlotHeight,
-                alignment: .topLeading
-            )
-            Group {
+            informationSlot(height: Presentation.secondaryInformationSlotHeight) {
                 if let selectedLunar,
-                   model.showsSolarTerms,
-                   let solarTermName = selectedLunar.solarTermName {
+                    model.showsSolarTerms,
+                    let solarTermName = selectedLunar.solarTermName {
                     Text(solarTermName)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
             }
-            .frame(
-                height: Presentation.secondaryInformationSlotHeight,
-                alignment: .topLeading
-            )
-            Group {
-                if let holidayMark = model.holidayMark(for: model.selectedDay) {
-                    Text(
-                        AppText.holidayDetailLine(
-                            holidayMark.name,
-                            holidayMark.isOffDay
-                                ? AppText.holidayOffBadge
-                                : AppText.holidayWorkBadge
+            informationSlot(height: Presentation.secondaryInformationSlotHeight) {
+                if let holidayDetailText = model.holidayDetailText(
+                    for: model.selectedDay
+                ) {
+                    Text(holidayDetailText)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(
+                            (model.holidayMark(for: model.selectedDay)?.isOffDay ?? false)
+                                ? .red
+                                : .secondary
                         )
-                    )
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(holidayMark.isOffDay ? .red : .secondary)
-                    .lineLimit(1)
+                        .lineLimit(1)
                 }
             }
-            .frame(
-                height: Presentation.secondaryInformationSlotHeight,
-                alignment: .topLeading
-            )
         }
+    }
+
+    /// 信息槽位容器：ZStack 即使内容为空也占据固定高度（EmptyView
+    /// 会吞掉直接包裹的 frame 修饰符），保证节气/节假日文案出现与
+    /// 消失时布局恒定。
+    private func informationSlot<Content: View>(
+        height: CGFloat,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        ZStack(alignment: .topLeading) {
+            content()
+        }
+        .frame(height: height, alignment: .topLeading)
     }
 
     private var displayedMonthDate: Date? {

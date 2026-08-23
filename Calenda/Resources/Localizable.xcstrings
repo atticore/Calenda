@@ -284,6 +284,17 @@
         }
       }
     },
+    "holiday.vacation_block_name" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@假期"
+          }
+        }
+      }
+    },
     "holiday.work_badge" : {
       "localizations" : {
         "zh-Hans" : {
@@ -372,6 +383,160 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Calenda 日历"
+          }
+        }
+      }
+    },
+    "menu.about" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "关于 Calenda"
+          }
+        }
+      }
+    },
+    "menu.edit" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "编辑"
+          }
+        }
+      }
+    },
+    "menu.edit.copy" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "拷贝"
+          }
+        }
+      }
+    },
+    "menu.edit.cut" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "剪切"
+          }
+        }
+      }
+    },
+    "menu.edit.paste" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "粘贴"
+          }
+        }
+      }
+    },
+    "menu.edit.redo" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "重做"
+          }
+        }
+      }
+    },
+    "menu.edit.select_all" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "全选"
+          }
+        }
+      }
+    },
+    "menu.edit.undo" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "撤销"
+          }
+        }
+      }
+    },
+    "menu.quit_app" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "退出 Calenda"
+          }
+        }
+      }
+    },
+    "menu.settings_item" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "设置…"
+          }
+        }
+      }
+    },
+    "menu.window" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "窗口"
+          }
+        }
+      }
+    },
+    "menu.window.close" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "关闭"
+          }
+        }
+      }
+    },
+    "menu.window.minimize" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "最小化"
+          }
+        }
+      }
+    },
+    "menu.window.zoom" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "缩放"
           }
         }
       }
@@ -732,6 +897,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "天气数据：Open-Meteo"
+          }
+        }
+      }
+    },
+    "weather.choose_city" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "选择城市"
           }
         }
       }

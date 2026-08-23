@@ -13,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ShellActions {
     private var statusItemController: StatusItemController?
     private var settingsWindowController: SettingsWindowController?
     private var settingsStore: SettingsStore?
+    private var appMenuCoordinator: AppMenuCoordinator?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let settingsStore = SettingsStore()
@@ -25,6 +26,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ShellActions {
         let weatherService = WeatherService(client: weatherClient)
         let locationService = SystemLocationService()
 
+        // LSUIElement 应用平时无菜单栏；设置窗口为 key 期间切到
+        // regular 策略时需要这份最小主菜单承载编辑命令（Cmd+C/V）
+        let appMenuCoordinator = AppMenuCoordinator { [weak self] in
+            self?.openSettings()
+        }
+        appMenuCoordinator.install()
+        self.appMenuCoordinator = appMenuCoordinator
+
         let appModel = AppModel(
             settings: settingsStore,
             holidayService: holidayService,
@@ -33,7 +42,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ShellActions {
         )
         let panelController = PanelController(
             appModel: appModel,
-            shellActions: self
+            shellActions: self,
+            citySearcher: weatherClient
         )
         self.panelController = panelController
 

@@ -252,7 +252,7 @@ struct SettingsRootView: View {
                         HStack {
                             Text(city.name)
                                 .foregroundStyle(.primary)
-                            Text(cityResultDetail(city))
+                            Text(city.regionDetail)
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -260,13 +260,6 @@ struct SettingsRootView: View {
                 }
             }
         }
-    }
-
-    private func cityResultDetail(_ city: ManualCity) -> String {
-        let region = [city.admin1, city.countryCode]
-            .filter { !$0.isEmpty }
-            .joined(separator: " · ")
-        return region.isEmpty ? city.timezone : region
     }
 
     private var manualCityLabel: String {

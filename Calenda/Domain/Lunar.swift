@@ -5,18 +5,31 @@
 //  Created by atticore on 2026/8/21.
 //
 
-/// 日格第二行的语义徽标，优先级：节气 > 农历节日 > 农历日期。
-/// 法定节日徽标由 Phase 2 的 HolidayService 提供，不在此建模。
+/// 日格第二行的语义徽标，优先级：节气 > 农历节日 > 公历法定节日 > 农历日期。
+/// 法定作息（休/班）由 HolidayService 的 HolidayMark 单独表达，不在此建模。
 nonisolated enum LunarDayBadge: Sendable, Equatable {
     case solarTerm(String)
     case lunarFestival(String)
+    case solarFestival(String)
     case lunarDay(String)
 
     /// 徽标携带的展示文案。
     var label: String {
         switch self {
-        case let .solarTerm(label), let .lunarFestival(label), let .lunarDay(label):
+        case let .solarTerm(label), let .lunarFestival(label),
+            let .solarFestival(label), let .lunarDay(label):
             return label
+        }
+    }
+
+    /// 当天恰为节日（农历传统节日或法定公历节日）时的节日名；
+    /// 连续法定假期的锚点日判定依据。
+    var festivalName: String? {
+        switch self {
+        case let .lunarFestival(name), let .solarFestival(name):
+            return name
+        case .solarTerm, .lunarDay:
+            return nil
         }
     }
 }
@@ -29,9 +42,9 @@ nonisolated struct SolarTermCountdown: Sendable, Equatable {
 /// 单个公历日的农历展示信息；由 TymeLunarAdapter 从 Tyme4Swift 换算，
 /// 隐藏第三方类型（设计第 9 章）。
 nonisolated struct LunarDayInformation: Sendable, Equatable {
-    /// 日格第二行文案（完整优先级：节气 > 农历节日 > 农历日期）
+    /// 日格第二行文案（完整优先级：节气 > 农历节日 > 公历法定节日 > 农历日期）
     let badge: LunarDayBadge
-    /// 关闭节气显示时的降级徽标（农历节日 > 农历日期）
+    /// 关闭节气显示时的降级徽标（农历节日 > 公历法定节日 > 农历日期）
     let badgeWithoutSolarTerm: LunarDayBadge
     /// 完整农历日期，例如“丙午年七月初六”
     let fullDate: String

@@ -360,6 +360,82 @@ struct OpenMeteoClientTests {
         #expect(requestedURL?.contains("count=10") == true)
         #expect(requestedURL?.contains("format=json") == true)
     }
+
+    @Test
+    func geocodingRanksPopulousCitiesFirstAndFiltersHamlets() async {
+        setUp()
+        // 复刻真实接口行为：同名“上海”含大量小居民点（无 population
+        // 字段），城市本体带 population；带人口数据的同名聚落（如
+        // 台湾的深圳）是真实行政点，保留。此处故意乱序返回。
+        WeatherStubProtocol.stub(
+            host: "geocoding-api.open-meteo.com",
+            status: 200,
+            data: Data(
+                """
+                {"results":[
+                {"name":"上海","admin1":"云南","admin2":"丽江市",
+                "country":"中国","country_code":"CN","latitude":27.0741,
+                "longitude":100.107,"timezone":"Asia/Shanghai"},
+                {"name":"上海","admin1":"上海市","admin2":"上海市",
+                "country":"中国","country_code":"CN","latitude":31.22222,
+                "longitude":121.45806,"timezone":"Asia/Shanghai",
+                "population":24874500},
+                {"name":"上海","admin1":"浙江","admin2":"绍兴市",
+                "country":"中国","country_code":"CN","latitude":29.32955,
+                "longitude":121.05804,"timezone":"Asia/Shanghai"},
+                {"name":"上海","admin1":"臺灣省 or 台灣省","admin2":"桃園市",
+                "country":"台湾","country_code":"TW","latitude":24.9,
+                "longitude":121.2,"timezone":"Asia/Taipei",
+                "population":6700}
+                ]}
+                """.utf8
+            )
+        )
+
+        let result = await makeClient().searchCities(matching: "上海")
+
+        guard case let .success(cities) = result else {
+            Issue.record("期望城市结果：\(result)")
+            return
+        }
+        // 存在带人口数据的城市时，无 population 的同名小居民点（村级
+        // 记录）是选城噪音，直接过滤；带数据的聚落保留并按人口降序。
+        #expect(cities.count == 2)
+        #expect(cities.first?.admin1 == "上海市")
+        #expect(cities.first?.admin2 == "上海市")
+        #expect(cities.first?.country == "中国")
+        #expect(cities.last?.admin2 == "桃園市")
+        #expect(cities.allSatisfy { $0.admin1 != "浙江" && $0.admin1 != "云南" })
+    }
+
+    @Test
+    func geocodingKeepsUnpopulatedResultsWhenNoCityHasData() async {
+        setUp()
+        // 查询只命中无 population 的小居民点时（如搜“丽江”只返回
+        // 湖南岳阳的同名村），过滤规则不得把结果清空。
+        WeatherStubProtocol.stub(
+            host: "geocoding-api.open-meteo.com",
+            status: 200,
+            data: Data(
+                """
+                {"results":[
+                {"name":"丽江","admin1":"湖南","admin2":"岳阳市",
+                "country":"中国","country_code":"CN","latitude":29.3,
+                "longitude":112.9,"timezone":"Asia/Shanghai"}
+                ]}
+                """.utf8
+            )
+        )
+
+        let result = await makeClient().searchCities(matching: "丽江")
+
+        guard case let .success(cities) = result else {
+            Issue.record("期望城市结果：\(result)")
+            return
+        }
+        #expect(cities.count == 1)
+        #expect(cities.first?.admin2 == "岳阳市")
+    }
 }
 
 // MARK: - 服务

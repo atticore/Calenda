@@ -59,12 +59,13 @@ final class OutsideClickMonitor {
 
         localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) {
             @MainActor [weak self] event in
+            // 月选择器等子窗口打开时，按键全部交给弹出层自身的窗口
+            // （Escape 先行关闭弹出层、方向键驱动弹出层内部导航），
+            // 底层日历不得消费——否则会移动被遮挡的选中日期。
+            if self?.hasVisibleChildWindow == true {
+                return event
+            }
             guard event.keyCode != Keyboard.escapeKeyCode else {
-                // 月选择器等子窗口打开时，Escape 先交给弹出层自行消费，
-                // 避免一次按键同时关闭弹出层和整个面板。
-                if self?.hasVisibleChildWindow == true {
-                    return event
-                }
                 self?.requestClose(reason: .escape)
                 return nil
             }

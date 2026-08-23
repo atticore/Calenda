@@ -91,6 +91,39 @@ struct TymeLunarAdapterTests {
         #expect(information?.nextSolarTerm.daysRemaining == 5)
     }
 
+    // MARK: - 法定公历节日锚点
+
+    @Test
+    func mapsStatutorySolarFestivals() {
+        let newYear = adapter.information(
+            for: CalendarDayID(year: 2026, month: 1, day: 1)
+        )
+        #expect(newYear?.badge == .solarFestival("元旦"))
+
+        let laborDay = adapter.information(
+            for: CalendarDayID(year: 2026, month: 5, day: 1)
+        )
+        #expect(laborDay?.badge == .solarFestival("劳动节"))
+
+        let nationalDay = adapter.information(
+            for: CalendarDayID(year: 2026, month: 10, day: 1)
+        )
+        #expect(nationalDay?.badge == .solarFestival("国庆节"))
+    }
+
+    @Test
+    func filtersNonStatutorySolarFestivals() {
+        // 妇女节（3/8）不在法定锚点内：回退农历日期徽标
+        let womenDay = adapter.information(
+            for: CalendarDayID(year: 2026, month: 3, day: 8)
+        )
+        #expect(womenDay?.badgeWithoutSolarTerm.festivalName == nil)
+        guard case .lunarDay = womenDay?.badge else {
+            Issue.record("妇女节应回退为农历日期徽标")
+            return
+        }
+    }
+
     @Test
     func returnsNilForUnsupportedDates() {
         let information = adapter.information(

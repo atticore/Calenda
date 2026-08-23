@@ -65,6 +65,7 @@ struct MonthPickerView: View {
                 Image(systemName: Layout.previousYearSymbol)
             }
             .accessibilityLabel(AppText.previousYear)
+            .help(AppText.previousYear)
 
             Spacer()
 
@@ -81,6 +82,7 @@ struct MonthPickerView: View {
                 Image(systemName: Layout.nextYearSymbol)
             }
             .accessibilityLabel(AppText.nextYear)
+            .help(AppText.nextYear)
         }
     }
 

@@ -48,17 +48,30 @@ final class PanelController: PanelControlling {
     init(
         positioner: any PanelPositioning = PanelPositioner(),
         appModel: AppModel = AppModel(),
-        shellActions: (any ShellActions)? = nil
+        shellActions: (any ShellActions)? = nil,
+        citySearcher: (any CitySearching)? = nil
     ) {
         self.positioner = positioner
         self.appModel = appModel
         self.shellActions = shellActions
+        let cityPicker = citySearcher.map { searcher in
+            CityPickerActions(
+                searcher: searcher,
+                select: { [weak appModel] city in
+                    appModel?.selectCity(city)
+                },
+                useCurrentLocation: { [weak appModel] in
+                    appModel?.useCurrentLocation()
+                }
+            )
+        }
         hostingView = NSHostingView(
             rootView: PanelShellView(
                 model: appModel,
                 openSettings: { [weak shellActions] in
                     shellActions?.openSettings()
-                }
+                },
+                cityPicker: cityPicker
             )
         )
         panel = CalendarPanel(hostedContentView: hostingView)
@@ -109,11 +122,18 @@ final class PanelController: PanelControlling {
         )
 
         panel.setFrame(panelFrame, display: false)
-        NSApplication.shared.activate()
+        // 点击状态项是明确的用户意图：macOS 14+ 的协作式 activate()
+        // 会被系统在“前台应用持有键盘焦点”时拒绝，结果面板看得见、
+        // 键盘事件却仍路由给原前台应用。activate(ignoringOtherApps:)
+        // 的弃用理由是阻止*无用户交互*时抢焦点；用户主动点击正是
+        // 该 API 仍然可靠的老场景（成熟菜单栏应用的通行做法），
+        // 这里有意选用并接受弃用诊断。
+        NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
         // 状态栏应用的面板必须显式置前，否则可能被当前活跃应用的
         // 浮层遮住，直到用户再次点击才成为最前层。
         panel.orderFrontRegardless()
+        retryMakingPanelKeyIfNeeded()
         outsideClickMonitor.install(
             panel: panel,
             anchorWindow: statusWindow,
@@ -135,6 +155,21 @@ final class PanelController: PanelControlling {
             return
         }
         visibility.finishHiding()
+    }
+
+    /// 激活请求经窗口服务器异步落地：调用返回时面板可能尚未成为
+    /// key。此刻不是 key 就在下一个主线程 tick 重试一次
+    /// makeKeyAndOrderFront，保证键盘事件路由到面板；
+    /// orderFrontRegardless 已保证可见性，无需更多重试。
+    private func retryMakingPanelKeyIfNeeded() {
+        guard !panel.isKeyWindow else {
+            return
+        }
+        Task { @MainActor [panel] in
+            if panel.isVisible, !panel.isKeyWindow {
+                panel.makeKeyAndOrderFront(nil)
+            }
+        }
     }
 
     private func handleCalendarKeyDown(_ event: NSEvent) -> Bool {

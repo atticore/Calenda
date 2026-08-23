@@ -15,6 +15,24 @@ final class CalendaUITests: XCTestCase {
         static let existenceTimeout: TimeInterval = 5
         static let hittablePollTimeout: TimeInterval = 1.5
         static let pollInterval: TimeInterval = 0.2
+
+        // 面板内控件的 accessibility 标签（与 AppText 默认值一致）
+        static let monthPickerAccessibilityLabel = "选择年月"
+        static let previousYearLabel = "上一年"
+        static let octoberLabel = "十月"
+        static let nationalDayLabel = "国庆节"
+        static let midAutumnLabel = "中秋节"
+        static let coldDewSolarTermLabel = "寒露"
+        static let combinedHolidayLabel = "国庆节、中秋节"
+        static let nationalDayOffDetail = "国庆节 · 休"
+        static let nationalDayVacationDetail = "国庆节假期 · 休"
+        static let midAutumnVacationDetail = "中秋节假期 · 休"
+        static let chooseCityLabel = "选择城市"
+        static let citySearchPlaceholder = "输入城市名搜索（至少 2 个字符）"
+        static let useCurrentLocationLabel = "使用当前位置"
+        static let weatherOfflineText = "网络不可用，天气暂不可用"
+        static let openSettingsLabel = "设置"
+        static let settingsWindowTitle = "设置"
     }
 
     override class func setUp() {
@@ -128,6 +146,323 @@ final class CalendaUITests: XCTestCase {
             waitForPanel(visible: false, timeout: Fixture.existenceTimeout),
             "Calendar panel did not close after Escape"
         )
+    }
+
+    /// 连续假期的逐日命名（问题 2 回归）：2025 年国庆中秋合并块里，
+    /// 日格徽标只在锚点日显示具体节日名（10/1 国庆节、10/6 中秋节），
+    /// 中间日不显示公告合并名，节气（10/8 寒露）不被压掉；详情行
+    /// 锚点日显示具体名、中间日显示块名。
+    @MainActor
+    func testCombinedHolidayNamesOnlyAnchorsInDayCells() throws {
+        try throwIfSessionLocked()
+
+        let application = XCUIApplication()
+        application.launchEnvironment["CALENDA_DISABLE_NETWORK_REFRESH"] = "1"
+        application.launch()
+        application.activate()
+
+        try openPanelByRealClick(application)
+
+        XCTAssertTrue(
+            waitForPanel(visible: true, timeout: Fixture.existenceTimeout),
+            "Calendar panel did not appear"
+        )
+
+        // 月选择器导航到 2025 年 10 月（内置快照，离线可用）
+        let monthPickerButton = application.buttons[
+            Fixture.monthPickerAccessibilityLabel
+        ]
+        XCTAssertTrue(
+            monthPickerButton.waitForExistence(timeout: Fixture.existenceTimeout),
+            "Month picker button is not exposed to accessibility"
+        )
+        monthPickerButton.click()
+
+        let previousYearButton = application.buttons[Fixture.previousYearLabel]
+        XCTAssertTrue(
+            previousYearButton.waitForExistence(timeout: Fixture.existenceTimeout),
+            "Month picker did not present year navigation"
+        )
+        previousYearButton.click()
+
+        let octoberButton = application.buttons[Fixture.octoberLabel]
+        XCTAssertTrue(
+            octoberButton.waitForExistence(timeout: Fixture.existenceTimeout),
+            "Month picker did not present October"
+        )
+        octoberButton.click()
+
+        // 锚点日的日格标签包含具体节日名（徽标并入无障碍标签）
+        XCTAssertTrue(
+            waitForAnyButton(
+                application,
+                containing: Fixture.nationalDayLabel,
+                timeout: Fixture.existenceTimeout
+            ),
+            "10/1 cell should carry 国庆节 in its badge"
+        )
+        XCTAssertTrue(
+            waitForAnyButton(
+                application,
+                containing: Fixture.midAutumnLabel,
+                timeout: Fixture.existenceTimeout
+            ),
+            "10/6 cell should carry 中秋节 in its badge"
+        )
+        XCTAssertTrue(
+            waitForAnyButton(
+                application,
+                containing: Fixture.coldDewSolarTermLabel,
+                timeout: Fixture.existenceTimeout
+            ),
+            "10/8 cell should carry the 寒露 solar term"
+        )
+        // 公告合并名不得出现在日格徽标（详情行允许“…假期”块名）
+        XCTAssertFalse(
+            application.buttons.matching(
+                NSPredicate(
+                    format: "label CONTAINS %@",
+                    Fixture.combinedHolidayLabel
+                )
+            ).firstMatch.exists,
+            "Day cells must not repeat the combined announcement name"
+        )
+
+        // 详情行：锚点日显示具体节日名 + 休
+        anchorCell(application, dayText: "10 月 1 日").click()
+        XCTAssertTrue(
+            application.staticTexts[Fixture.nationalDayOffDetail]
+                .waitForExistence(timeout: Fixture.existenceTimeout),
+            "10/1 detail line should read 国庆节 · 休"
+        )
+        // 中间日一次只归属一个节日：不晚于当天最近的锚点 + 假期 + 休
+        anchorCell(application, dayText: "10 月 3 日").click()
+        XCTAssertTrue(
+            application.staticTexts[Fixture.nationalDayVacationDetail]
+                .waitForExistence(timeout: Fixture.existenceTimeout),
+            "10/3 detail line should read 国庆节假期 · 休"
+        )
+        // 中秋锚点之后的中间日归属中秋节
+        anchorCell(application, dayText: "10 月 7 日").click()
+        XCTAssertTrue(
+            application.staticTexts[Fixture.midAutumnVacationDetail]
+                .waitForExistence(timeout: Fixture.existenceTimeout),
+            "10/7 detail line should read 中秋节假期 · 休"
+        )
+
+        application.terminate()
+    }
+
+    /// 点击相邻月日期切换月份（闪烁回归）：9 月 29 日格在十月网格中
+    /// 属于上月；点击后九月网格就位，且被选日格的农历徽标随月份
+    /// 切换一并出现（模型层原子提交的端到端接线验证）。
+    @MainActor
+    func testAdjacentMonthDayCellSwitchesMonthWithBadges() throws {
+        try throwIfSessionLocked()
+
+        let application = XCUIApplication()
+        application.launchEnvironment["CALENDA_DISABLE_NETWORK_REFRESH"] = "1"
+        application.launch()
+        application.activate()
+
+        try openPanelByRealClick(application)
+
+        XCTAssertTrue(
+            waitForPanel(visible: true, timeout: Fixture.existenceTimeout),
+            "Calendar panel did not appear"
+        )
+
+        // 月选择器导航到 2025 年 10 月：该月周一起始网格的前导格
+        // 为 9 月 29/30 日，且不含 9 月 1 日
+        let monthPickerButton = application.buttons[
+            Fixture.monthPickerAccessibilityLabel
+        ]
+        XCTAssertTrue(
+            monthPickerButton.waitForExistence(timeout: Fixture.existenceTimeout),
+            "Month picker button is not exposed to accessibility"
+        )
+        monthPickerButton.click()
+
+        let previousYearButton = application.buttons[Fixture.previousYearLabel]
+        XCTAssertTrue(
+            previousYearButton.waitForExistence(timeout: Fixture.existenceTimeout),
+            "Month picker did not present year navigation"
+        )
+        previousYearButton.click()
+
+        let octoberButton = application.buttons[Fixture.octoberLabel]
+        XCTAssertTrue(
+            octoberButton.waitForExistence(timeout: Fixture.existenceTimeout),
+            "Month picker did not present October"
+        )
+        octoberButton.click()
+
+        let septemberFirstFragment = "9 月 1 日"
+        XCTAssertFalse(
+            application.buttons.matching(
+                NSPredicate(format: "label CONTAINS %@", septemberFirstFragment)
+            ).firstMatch.exists,
+            "October grid must not contain September 1 leading cells"
+        )
+
+        // 点击前导格 9 月 29 日（相邻月日期）
+        anchorCell(application, dayText: "9 月 29 日").click()
+
+        // 九月网格就位（9 月 1 日为周一，属九月网格首格）
+        XCTAssertTrue(
+            waitForAnyButton(
+                application,
+                containing: septemberFirstFragment,
+                timeout: Fixture.existenceTimeout
+            ),
+            "Clicking the adjacent cell should display September"
+        )
+        // 被选日回到九月网格内，农历徽标（八月初八 → 初八）随切换就位
+        let selectedCell = application.buttons.matching(
+            NSPredicate(format: "label CONTAINS %@", "9 月 29 日")
+        ).firstMatch
+        XCTAssertTrue(
+            selectedCell.waitForExistence(timeout: Fixture.existenceTimeout),
+            "September 29 cell should remain exposed after the switch"
+        )
+        XCTAssertTrue(
+            selectedCell.label.contains(septemberLunarBadge),
+            "Selected cell label should carry the lunar badge \(septemberLunarBadge), got: \(selectedCell.label)"
+        )
+
+        application.terminate()
+    }
+
+    /// 2025-09-29 为农历八月初八；无节气与节日，徽标显示农历日。
+    private var septemberLunarBadge: String { "初八" }
+
+    /// 月份切换后按“日 月”片段匹配日格按钮（标签为本地化完整日期）。
+    @MainActor
+    private func anchorCell(
+        _ application: XCUIApplication,
+        dayText: String
+    ) -> XCUIElement {
+        let cell = application.buttons.matching(
+            NSPredicate(format: "label CONTAINS %@", dayText)
+        ).firstMatch
+        XCTAssertTrue(
+            cell.waitForExistence(timeout: Fixture.existenceTimeout),
+            "Day cell \(dayText) is not exposed"
+        )
+        return cell
+    }
+
+    @MainActor
+    private func waitForAnyButton(
+        _ application: XCUIApplication,
+        containing text: String,
+        timeout: TimeInterval
+    ) -> Bool {
+        let button = application.buttons.matching(
+            NSPredicate(format: "label CONTAINS %@", text)
+        ).firstMatch
+        return button.waitForExistence(timeout: timeout)
+    }
+
+    /// 面板侧城市选择（问题 3 回归）：天气卡城市行弹出搜索 + 使用当前
+    /// 位置；离线环境下防抖搜索走失败态文案。
+    @MainActor
+    func testCityPickerPopoverFromWeatherCard() throws {
+        try throwIfSessionLocked()
+        try throwIfSecureInputHeld()
+
+        let application = XCUIApplication()
+        application.launchEnvironment["CALENDA_DISABLE_NETWORK_REFRESH"] = "1"
+        application.launch()
+        application.activate()
+
+        try openPanelByRealClick(application)
+
+        let chooseCityButton = application.buttons[Fixture.chooseCityLabel]
+        XCTAssertTrue(
+            chooseCityButton.waitForExistence(timeout: Fixture.existenceTimeout),
+            "Weather card city row is not exposed as 选择城市"
+        )
+        chooseCityButton.click()
+
+        let searchField = application.textFields[
+            Fixture.citySearchPlaceholder
+        ]
+        XCTAssertTrue(
+            searchField.waitForExistence(timeout: Fixture.existenceTimeout),
+            "City picker did not present the search field"
+        )
+        XCTAssertTrue(
+            application.buttons[Fixture.useCurrentLocationLabel].exists,
+            "City picker did not present 使用当前位置"
+        )
+
+        searchField.click()
+        searchField.typeText("上海")
+        // 防抖（350ms）+ 失败态：网络被禁用时地理编码失败显示离线文案
+        XCTAssertTrue(
+            application.staticTexts[Fixture.weatherOfflineText]
+                .waitForExistence(timeout: Fixture.existenceTimeout),
+            "Offline geocoding failure should surface in the popover"
+        )
+
+        // Escape 先关闭弹出层；面板保持，再按一次才关闭面板（附加1）
+        application.typeKey(.escape, modifierFlags: [])
+        XCTAssertTrue(
+            waitForPanel(visible: true, timeout: Fixture.existenceTimeout),
+            "Escape should close the popover, not the panel"
+        )
+        application.typeKey(.escape, modifierFlags: [])
+        XCTAssertTrue(
+            waitForPanel(visible: false, timeout: Fixture.existenceTimeout),
+            "Second Escape should close the panel"
+        )
+
+        application.terminate()
+    }
+
+    /// 设置窗口（问题 1 / 附加 7）：面板内打开设置后窗口可见、
+    /// 主菜单三项装配；关闭窗口恢复 accessory 形态不崩溃。
+    @MainActor
+    func testSettingsWindowOpensAndCloses() throws {
+        try throwIfSessionLocked()
+
+        let application = XCUIApplication()
+        application.launchEnvironment["CALENDA_DISABLE_NETWORK_REFRESH"] = "1"
+        application.launch()
+        application.activate()
+
+        try openPanelByRealClick(application)
+
+        let settingsButton = application.buttons[Fixture.openSettingsLabel]
+        XCTAssertTrue(
+            settingsButton.waitForExistence(timeout: Fixture.existenceTimeout),
+            "Settings button is not exposed"
+        )
+        settingsButton.click()
+
+        // 设置窗口出现（带标题栏的普通窗口）
+        let settingsWindow = application.windows[
+            Fixture.settingsWindowTitle
+        ]
+        XCTAssertTrue(
+            settingsWindow.waitForExistence(timeout: Fixture.existenceTimeout),
+            "Settings window did not appear"
+        )
+
+        // ⌘W 关闭设置窗口（主菜单“窗口 > 关闭”的快捷键）：
+        // 关闭后 LSUIElement 应用自然回到后台（不再前台），进程保持存活
+        application.typeKey("w", modifierFlags: .command)
+        let closed = NSPredicate(format: "exists == false")
+        let expectation = expectation(for: closed, evaluatedWith: settingsWindow)
+        wait(for: [expectation], timeout: Fixture.existenceTimeout)
+        XCTAssertNotEqual(
+            application.state,
+            .notRunning,
+            "App must stay alive after closing the settings window"
+        )
+
+        application.terminate()
     }
 
     // MARK: - 共用打开路径

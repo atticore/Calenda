@@ -8,94 +8,119 @@
 import SwiftUI
 
 /// 右侧详情区的“当前天气”块（设计 5.5/12.4）：
-/// 图标、当前温度、体感、城市；固定署名链接；
-/// 缓存过期显示上次更新时间。
+/// 主行 = 图标 + 当前温度（垂直居中对齐，视觉上互为锚点）；
+/// 次行 = 天气概况 · 体感温度；固定署名链接；缓存过期显示上次
+/// 更新时间。城市行是城市选择入口（弹出搜索 + 使用当前位置）。
 struct WeatherView: View {
     private enum Appearance {
-        static let iconFontSize: CGFloat = 20
-        static let temperatureFontSize: CGFloat = 24
+        static let iconFontSize: CGFloat = 22
+        static let temperatureFontSize: CGFloat = 26
         static let spacing: CGFloat = 6
-        static let conditionSpacing: CGFloat = 2
-        static let locationControlSize: CGFloat = 24
-        static let locationSymbol = "location.fill"
+        static let iconTemperatureSpacing: CGFloat = 7
+        static let cityChevronSpacing: CGFloat = 3
+        static let cityChevronFontSize: CGFloat = 8
+        static let cityChevronSymbol = "chevron.down"
     }
 
     private let snapshot: WeatherSnapshot
     private let unit: TemperatureUnit
-    private let useCurrentLocation: (() -> Void)?
+    private let cityPicker: CityPickerActions?
+    @State private var isCityPickerPresented = false
 
     init(
         snapshot: WeatherSnapshot,
         freshness _: DataFreshness,
         unit: TemperatureUnit,
-        useCurrentLocation: (() -> Void)? = nil
+        cityPicker: CityPickerActions? = nil
     ) {
         self.snapshot = snapshot
         self.unit = unit
-        self.useCurrentLocation = useCurrentLocation
+        self.cityPicker = cityPicker
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Appearance.spacing) {
-            HStack(alignment: .firstTextBaseline, spacing: Appearance.spacing) {
+            HStack(alignment: .center, spacing: Appearance.iconTemperatureSpacing) {
                 Image(
                     systemName: snapshot.condition.symbolName(
                         isDay: snapshot.isDay
                     )
                 )
                 .font(.system(size: Appearance.iconFontSize))
-                VStack(alignment: .leading, spacing: Appearance.conditionSpacing) {
-                    HStack(alignment: .firstTextBaseline, spacing: Appearance.spacing) {
-                        Text(
-                            TemperatureFormatter.display(
-                                celsius: snapshot.temperatureCelsius,
-                                unit: unit
-                            )
-                        )
-                        .font(
-                            .system(
-                                size: Appearance.temperatureFontSize,
-                                weight: .semibold
-                            )
-                        )
-                        .monospacedDigit()
-                        Text(snapshot.condition.displayName)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                    Text(
-                        AppText.apparentTemperature(
-                            TemperatureFormatter.display(
-                                celsius: snapshot.apparentTemperatureCelsius,
-                                unit: unit
-                            )
-                        )
+                Text(
+                    TemperatureFormatter.display(
+                        celsius: snapshot.temperatureCelsius,
+                        unit: unit
                     )
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                }
+                )
+                .font(
+                    .system(
+                        size: Appearance.temperatureFontSize,
+                        weight: .semibold
+                    )
+                )
+                .monospacedDigit()
             }
             .foregroundStyle(.primary)
 
-            HStack(spacing: Appearance.spacing) {
-                Text(cityDisplayName)
-                    .font(.footnote.weight(.medium))
-                if snapshot.location.isDefaultCity, let useCurrentLocation {
-                    Button(action: useCurrentLocation) {
-                        Image(systemName: Appearance.locationSymbol)
-                            .font(.caption)
-                            .frame(
-                                width: Appearance.locationControlSize,
-                                height: Appearance.locationControlSize
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(AppText.useCurrentLocation)
-                    .help(AppText.useCurrentLocation)
-                }
-            }
+            Text(conditionSummary)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+
+            cityRow
         }
         .accessibilityElement(children: .contain)
+    }
+
+    /// 次行摘要：天气概况与体感合并成一行次级信息，
+    /// 避免与主行温度抢基线。
+    private var conditionSummary: String {
+        let apparent = AppText.apparentTemperature(
+            TemperatureFormatter.display(
+                celsius: snapshot.apparentTemperatureCelsius,
+                unit: unit
+            )
+        )
+        return "\(snapshot.condition.displayName) · \(apparent)"
+    }
+
+    /// 城市行可点开城市选择弹出层；无注入（测试/降级）时退化为纯文本。
+    @ViewBuilder
+    private var cityRow: some View {
+        if let cityPicker {
+            Button {
+                isCityPickerPresented = true
+            } label: {
+                HStack(spacing: Appearance.cityChevronSpacing) {
+                    Text(cityDisplayName)
+                        .font(.footnote.weight(.medium))
+                    Image(systemName: Appearance.cityChevronSymbol)
+                        .font(
+                            .system(
+                                size: Appearance.cityChevronFontSize,
+                                weight: .semibold
+                            )
+                        )
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .buttonStyle(.plain)
+            .help(AppText.chooseCity)
+            .accessibilityLabel(AppText.chooseCity)
+            .accessibilityValue(cityDisplayName)
+            .popover(isPresented: $isCityPickerPresented, arrowEdge: .bottom) {
+                CityPickerPopover(
+                    searcher: cityPicker.searcher,
+                    selectCity: cityPicker.select,
+                    useCurrentLocation: cityPicker.useCurrentLocation,
+                    onFinished: { isCityPickerPresented = false }
+                )
+            }
+        } else {
+            Text(cityDisplayName)
+                .font(.footnote.weight(.medium))
+        }
     }
 
     private var cityDisplayName: String {
@@ -121,17 +146,21 @@ struct WeatherStatusView: View {
     private let unit: TemperatureUnit
     private let useCurrentLocation: (() -> Void)?
     private let isResolvingLocation: Bool
+    private let cityPicker: CityPickerActions?
+    @State private var isCityPickerPresented = false
 
     init(
         state: Loadable<WeatherSnapshot>,
         unit: TemperatureUnit,
         useCurrentLocation: (() -> Void)? = nil,
-        isResolvingLocation: Bool = false
+        isResolvingLocation: Bool = false,
+        cityPicker: CityPickerActions? = nil
     ) {
         self.state = state
         self.unit = unit
         self.useCurrentLocation = useCurrentLocation
         self.isResolvingLocation = isResolvingLocation
+        self.cityPicker = cityPicker
     }
 
     var body: some View {
@@ -153,7 +182,7 @@ struct WeatherStatusView: View {
                     snapshot: previous,
                     freshness: .stale(updatedAt: previous.fetchedAt),
                     unit: unit,
-                    useCurrentLocation: useCurrentLocation
+                    cityPicker: cityPicker
                 )
             } else {
                 HStack(spacing: Appearance.loadingSpacing) {
@@ -168,6 +197,7 @@ struct WeatherStatusView: View {
                 if error == .locationUnavailable {
                     locationHint
                 }
+                chooseCityEntry
                 if let previous {
                     Text(
                         AppText.weatherUpdatedAt(
@@ -184,7 +214,7 @@ struct WeatherStatusView: View {
                 snapshot: snapshot,
                 freshness: freshness,
                 unit: unit,
-                useCurrentLocation: useCurrentLocation
+                cityPicker: cityPicker
             )
         }
     }
@@ -212,6 +242,29 @@ struct WeatherStatusView: View {
         }
     }
 
+    /// 失败态同样保留城市选择入口：天气不可用不影响手动换城。
+    @ViewBuilder
+    private var chooseCityEntry: some View {
+        if let cityPicker {
+            Button {
+                isCityPickerPresented = true
+            } label: {
+                Text(AppText.chooseCity)
+                    .font(.caption)
+            }
+            .buttonStyle(.link)
+            .help(AppText.chooseCity)
+            .popover(isPresented: $isCityPickerPresented, arrowEdge: .bottom) {
+                CityPickerPopover(
+                    searcher: cityPicker.searcher,
+                    selectCity: cityPicker.select,
+                    useCurrentLocation: cityPicker.useCurrentLocation,
+                    onFinished: { isCityPickerPresented = false }
+                )
+            }
+        }
+    }
+
     private func label(_ text: String) -> some View {
         Text(text)
             .font(.footnote)
@@ -231,10 +284,8 @@ extension WeatherCondition {
     /// SF Symbols 映射（设计 12.2）：结合昼夜区分晴与局部多云。
     func symbolName(isDay: Bool) -> String {
         switch self {
-        case .clearSky:
+        case .clearSky, .mainlyClear:
             return isDay ? "sun.max" : "moon.stars"
-        case .mainlyClear:
-            return isDay ? "sun.max.trianglebadge.exclamationmark" : "moon.stars"
         case .partlyCloudy:
             return isDay ? "cloud.sun" : "cloud.moon"
         case .overcast, .unknown:

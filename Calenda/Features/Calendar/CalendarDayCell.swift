@@ -27,6 +27,7 @@ struct CalendarDayCell: View {
     private let isSelected: Bool
     private let badge: DayBadge?
     private let holidayMark: HolidayMark?
+    private let isWeekend: Bool
     private let selectionNamespace: Namespace.ID
     private let action: () -> Void
     @State private var isHovering = false
@@ -36,6 +37,7 @@ struct CalendarDayCell: View {
         isSelected: Bool,
         badge: DayBadge?,
         holidayMark: HolidayMark?,
+        isWeekend: Bool = false,
         selectionNamespace: Namespace.ID,
         action: @escaping () -> Void
     ) {
@@ -43,6 +45,7 @@ struct CalendarDayCell: View {
         self.isSelected = isSelected
         self.badge = badge
         self.holidayMark = holidayMark
+        self.isWeekend = isWeekend
         self.selectionNamespace = selectionNamespace
         self.action = action
     }
@@ -132,6 +135,8 @@ struct CalendarDayCell: View {
         }
     }
 
+    /// 无障碍标签 = 日期 + 节日/农历徽标 + 法定作息状态：
+    /// 视觉上的三段信息（数字、第二行、右上角徽标）合并朗读。
     private var accessibilityLabel: String {
         let base = AppText.dayAccessibilityLabel(
             year: cell.id.year,
@@ -139,20 +144,30 @@ struct CalendarDayCell: View {
             day: cell.id.day
         )
         guard let holidayMark else {
+            if let badge {
+                return AppText.dayAccessibilityLabelWithStatus(base, badge.label)
+            }
             return base
         }
+        let status = holidayMark.isOffDay
+            ? AppText.holidayOffDayStatus
+            : AppText.holidayWorkDayStatus
+        let labelWithStatus = AppText.dayAccessibilityLabelWithStatus(base, status)
+        guard let badge else {
+            return labelWithStatus
+        }
         return AppText.dayAccessibilityLabelWithStatus(
-            base,
-            holidayMark.isOffDay
-                ? AppText.holidayOffDayStatus
-                : AppText.holidayWorkDayStatus
+            AppText.dayAccessibilityLabelWithStatus(base, badge.label),
+            status
         )
     }
 
+    /// 周末仅以次级颜色区分，不改变法定徽标语义（设计 5.4）。
     private var dayForegroundStyle: Color {
-        cell.isInDisplayedMonth
-            ? .primary
-            : .primary.opacity(Appearance.adjacentDayOpacity)
+        if !cell.isInDisplayedMonth {
+            return .primary.opacity(Appearance.adjacentDayOpacity)
+        }
+        return isWeekend ? .secondary : .primary
     }
 
     private var badgeForegroundStyle: Color {

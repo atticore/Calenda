@@ -22,6 +22,9 @@ struct CalendarGrid: View {
 
     private let model: AppModel
     @Namespace private var selectionNamespace
+    /// 键盘焦点跟随选中日期（AppModel.focusedGridDay 的展示接线）：
+    /// 面板成为 key 后焦点环落在当前格，Space/Enter 可激活选中。
+    @FocusState private var focusedDay: CalendarDayID?
 
     init(model: AppModel) {
         self.model = model
@@ -35,19 +38,34 @@ struct CalendarGrid: View {
         .padding(.horizontal, Layout.horizontalPadding)
         .padding(.vertical, Layout.verticalPadding)
         .frame(maxHeight: .infinity, alignment: .top)
+        .onAppear { focusedDay = model.focusedGridDay }
+        .onChange(of: model.selectedDay) { _, _ in
+            focusedDay = model.focusedGridDay
+        }
+        // 月份切换后选中日可能不在新网格内，焦点回落到同日格
+        .onChange(of: model.cells) { _, _ in
+            focusedDay = model.focusedGridDay
+        }
+        .onChange(of: model.isPanelVisible) { _, isVisible in
+            if isVisible {
+                focusedDay = model.focusedGridDay
+            }
+        }
     }
 
     private var dayGrid: some View {
         LazyVGrid(columns: columns, spacing: Layout.gridSpacing) {
-            ForEach(model.cells) { cell in
+            ForEach(Array(model.cells.enumerated()), id: \.element.id) { index, cell in
                 CalendarDayCell(
                     cell: cell,
                     isSelected: cell.id == model.selectedDay,
                     badge: model.dayBadge(for: cell.id),
                     holidayMark: model.holidayMark(for: cell.id),
+                    isWeekend: weekdays[index % Layout.columnCount].isWeekend,
                     selectionNamespace: selectionNamespace,
                     action: { model.select(cell.id) }
                 )
+                .focused($focusedDay, equals: cell.id)
             }
         }
     }
@@ -64,7 +82,7 @@ struct CalendarGrid: View {
             ForEach(weekdays, id: \.self) { weekday in
                 Text(weekday.symbol)
                     .font(Layout.weekdayFont)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(weekdayHeaderStyle(isWeekend: weekday.isWeekend))
                     .frame(maxWidth: .infinity)
             }
         }
@@ -72,6 +90,11 @@ struct CalendarGrid: View {
 
     private var weekdays: [CalendarWeekday] {
         CalendarWeekday.ordered(startingWith: model.firstWeekday)
+    }
+
+    /// 周末仅用次级颜色区分，不自动等同法定节假日（设计 5.4）。
+    private func weekdayHeaderStyle(isWeekend: Bool) -> Color {
+        isWeekend ? .secondary : .primary.opacity(0.55)
     }
 }
 

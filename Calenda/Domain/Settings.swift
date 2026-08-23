@@ -19,13 +19,66 @@ nonisolated enum TemperatureUnit: String, Sendable, Equatable {
 nonisolated struct ManualCity: Codable, Sendable, Equatable, Hashable {
     let name: String
     let admin1: String
+    /// 二级行政区（地级市），同名不同城时用于消歧；
+    /// 旧持久化数据可能缺失，解码回退空串。
+    var admin2: String = ""
+    /// 本地化国家名（如“中国”）；旧持久化数据可能缺失，解码回退空串。
+    var country: String = ""
     let countryCode: String
     let latitude: Double
     let longitude: Double
     let timezone: String
 
+    init(
+        name: String,
+        admin1: String,
+        countryCode: String,
+        latitude: Double,
+        longitude: Double,
+        timezone: String,
+        admin2: String = "",
+        country: String = ""
+    ) {
+        self.name = name
+        self.admin1 = admin1
+        self.admin2 = admin2
+        self.country = country
+        self.countryCode = countryCode
+        self.latitude = latitude
+        self.longitude = longitude
+        self.timezone = timezone
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        name = try container.decode(String.self, forKey: .name)
+        admin1 = try container.decode(String.self, forKey: .admin1)
+        admin2 = try container.decodeIfPresent(String.self, forKey: .admin2) ?? ""
+        country = try container.decodeIfPresent(String.self, forKey: .country) ?? ""
+        countryCode = try container.decode(String.self, forKey: .countryCode)
+        latitude = try container.decode(Double.self, forKey: .latitude)
+        longitude = try container.decode(Double.self, forKey: .longitude)
+        timezone = try container.decode(String.self, forKey: .timezone)
+    }
+
     var hasValidCoordinates: Bool {
         (-90.0...90.0).contains(latitude) && (-180.0...180.0).contains(longitude)
+    }
+}
+
+extension ManualCity {
+    /// 搜索结果消歧行：一级行政区 · 二级行政区 · 国家（去重、去空）。
+    /// 地理编码常有同名小居民点（如云南丽江的“上海”），完整行政
+    /// 链避免被读成“上海属于云南”；字段全空时回退时区标识。
+    nonisolated var regionDetail: String {
+        var parts: [String] = []
+        for part in [admin1, admin2, country]
+        where !part.isEmpty && !parts.contains(part) {
+            parts.append(part)
+        }
+        return parts.isEmpty
+            ? timezone
+            : parts.joined(separator: " · ")
     }
 }
 

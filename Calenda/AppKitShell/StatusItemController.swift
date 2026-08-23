@@ -137,6 +137,8 @@ final class StatusItemController {
 
     /// 右键临时弹出设置菜单；不把 menu 永久赋给
     /// status item，避免吞掉左键动作（设计 5.3）。
+    /// LSUIElement 应用没有 Dock 图标，这里同时是鼠标用户
+    /// 唯一的退出入口。
     private func showContextMenu(for button: NSStatusBarButton) {
         guard let event = NSApp.currentEvent else {
             return
@@ -149,12 +151,24 @@ final class StatusItemController {
             keyEquivalent: ","
         )
         settingsItem.target = self
+        menu.addItem(.separator())
+        let quitItem = menu.addItem(
+            withTitle: AppText.quitApp,
+            action: #selector(quitFromMenu),
+            keyEquivalent: "q"
+        )
+        quitItem.target = self
         NSMenu.popUpContextMenu(menu, with: event, for: button)
     }
 
     @objc
     private func openSettingsFromMenu() {
         shellActions?.openSettings()
+    }
+
+    @objc
+    private func quitFromMenu() {
+        shellActions?.quit()
     }
 
     @objc

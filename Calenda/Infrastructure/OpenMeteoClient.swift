@@ -180,14 +180,30 @@ nonisolated final class OpenMeteoClient: WeatherFetching, CitySearching, Sendabl
 
         do {
             let dto = try JSONDecoder().decode(GeocodingDTO.self, from: data)
-            let cities = (dto.results ?? []).compactMap { result in
+            // 按人口降序稳定排序：同名地点（如多个“上海”）让城市
+            // 本体排前，无 population 的居民点保持接口原始相对顺序。
+            let ranked = (dto.results ?? [])
+                .enumerated()
+                .sorted { lhs, rhs in
+                    let lhsPopulation = lhs.element.population ?? 0
+                    let rhsPopulation = rhs.element.population ?? 0
+                    if lhsPopulation != rhsPopulation {
+                        return lhsPopulation > rhsPopulation
+                    }
+                    return lhs.offset < rhs.offset
+                }
+                .map(\.element)
+            let relevant = Self.filterHamletNoise(from: ranked)
+            let cities = relevant.compactMap { result in
                 ManualCity(
                     name: result.name,
                     admin1: result.admin1 ?? "",
                     countryCode: result.countryCode ?? "",
                     latitude: result.latitude,
                     longitude: result.longitude,
-                    timezone: result.timezone ?? ""
+                    timezone: result.timezone ?? "",
+                    admin2: result.admin2 ?? "",
+                    country: result.country ?? ""
                 )
             }
             return .success(cities)
@@ -197,6 +213,22 @@ nonisolated final class OpenMeteoClient: WeatherFetching, CitySearching, Sendabl
     }
 
     // MARK: - 映射
+
+    /// 同名小居民点过滤：地理编码按名字精确匹配，会返回大量村级
+    /// 同名点（云南丽江的“上海”之类），它们在 GeoNames 里没有
+    /// population 数据。结果中存在带人口数据的真实城市时，这些
+    /// 无人口记录的居民点对选城只是噪音——天气按行政区粒度足够
+    /// ——直接剔除；全部结果都无人口数据时原样保留，避免搜索
+    /// 只有村级记录的小地名时无结果可用。
+    private static func filterHamletNoise(
+        from results: [GeocodingDTO.ResultDTO]
+    ) -> [GeocodingDTO.ResultDTO] {
+        let hasPopulatedResult = results.contains { ($0.population ?? 0) > 0 }
+        guard hasPopulatedResult else {
+            return results
+        }
+        return results.filter { ($0.population ?? 0) > 0 }
+    }
 
     private static func makeSnapshot(
         dto: ForecastDTO,
@@ -301,7 +333,10 @@ nonisolated final class OpenMeteoClient: WeatherFetching, CitySearching, Sendabl
         struct ResultDTO: Decodable {
             let name: String
             let admin1: String?
+            let admin2: String?
+            let country: String?
             let countryCode: String?
+            let population: Int?
             let latitude: Double
             let longitude: Double
             let timezone: String?
@@ -309,7 +344,10 @@ nonisolated final class OpenMeteoClient: WeatherFetching, CitySearching, Sendabl
             enum CodingKeys: String, CodingKey {
                 case name
                 case admin1
+                case admin2
+                case country
                 case countryCode = "country_code"
+                case population
                 case latitude
                 case longitude
                 case timezone

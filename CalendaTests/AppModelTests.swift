@@ -130,7 +130,7 @@ struct AppModelTests {
     }
 
     @Test
-    func selectingAnAdjacentMonthCellChangesTheDisplayedMonth() throws {
+    func selectingAnAdjacentMonthCellChangesTheDisplayedMonth() async throws {
         let clock = try makeClock(at: "2026-02-14T10:00:00Z")
         let model = AppModel(
             clock: clock,
@@ -139,10 +139,16 @@ struct AppModelTests {
         let adjacentDay = try #require(model.cells.first?.id)
 
         model.select(adjacentDay)
+        await drainUntil(
+            model.displayedMonth == CalendarMonthID(year: 2026, month: 1)
+        )
 
         #expect(model.selectedDay == adjacentDay)
         #expect(model.displayedMonth == CalendarMonthID(year: 2026, month: 1))
         #expect(model.cells.allSatisfy { $0.id.month == 1 || !$0.isInDisplayedMonth })
+        // 跨月选中与月份切换原子提交：月份就位时选中日的农历信息
+        // 必须同帧可用，不得出现徽标/详情空白的半成品帧（防闪烁契约）
+        #expect(model.lunarInformation(for: adjacentDay) != nil)
     }
 
     @Test
@@ -289,22 +295,28 @@ struct AppModelTests {
     }
 
     @Test
-    func movingTheSelectedDayAcrossAMonthBoundaryUpdatesTheGrid() throws {
+    func movingTheSelectedDayAcrossAMonthBoundaryUpdatesTheGrid() async throws {
         let clock = try makeClock(at: "2026-02-14T10:00:00Z")
         let model = AppModel(
             clock: clock,
             calendarService: CalendarService(timeZone: Fixture.utc)
         )
         model.select(CalendarDayID(year: 2026, month: 1, day: 31))
+        await drainUntil(
+            model.displayedMonth == CalendarMonthID(year: 2026, month: 1)
+        )
 
         model.moveSelectedDay(by: 1)
+        await drainUntil(
+            model.displayedMonth == CalendarMonthID(year: 2026, month: 2)
+        )
 
         #expect(model.selectedDay == CalendarDayID(year: 2026, month: 2, day: 1))
         #expect(model.displayedMonth == CalendarMonthID(year: 2026, month: 2))
     }
 
     @Test
-    func movingTheSelectedDayByAWeekPreservesCalendarDayArithmetic() throws {
+    func movingTheSelectedDayByAWeekPreservesCalendarDayArithmetic() async throws {
         let clock = try makeClock(at: "2026-03-03T10:00:00Z")
         let model = AppModel(
             clock: clock,
@@ -312,21 +324,30 @@ struct AppModelTests {
         )
 
         model.moveSelectedDay(by: -7)
+        await drainUntil(
+            model.displayedMonth == CalendarMonthID(year: 2026, month: 2)
+        )
 
         #expect(model.selectedDay == CalendarDayID(year: 2026, month: 2, day: 24))
         #expect(model.displayedMonth == CalendarMonthID(year: 2026, month: 2))
     }
 
     @Test
-    func returnToTodayResetsTheSelectedAndDisplayedDates() throws {
+    func returnToTodayResetsTheSelectedAndDisplayedDates() async throws {
         let clock = try makeClock(at: "2026-02-14T10:00:00Z")
         let model = AppModel(
             clock: clock,
             calendarService: CalendarService(timeZone: Fixture.utc)
         )
         model.select(CalendarDayID(year: 2026, month: 1, day: 26))
+        await drainUntil(
+            model.displayedMonth == CalendarMonthID(year: 2026, month: 1)
+        )
 
         model.returnToToday()
+        await drainUntil(
+            model.displayedMonth == CalendarMonthID(year: 2026, month: 2)
+        )
 
         #expect(model.selectedDay == CalendarDayID(year: 2026, month: 2, day: 14))
         #expect(model.displayedMonth == CalendarMonthID(year: 2026, month: 2))
@@ -413,6 +434,9 @@ struct AppModelTests {
         #expect(model.monthNavigationDirection == .forward)
 
         model.select(CalendarDayID(year: 2029, month: 12, day: 20))
+        await drainUntil(
+            model.displayedMonth == CalendarMonthID(year: 2029, month: 12)
+        )
         #expect(model.monthNavigationDirection == .backward)
     }
 
@@ -482,7 +506,7 @@ struct AppModelTests {
     // MARK: - 节假日数据流
 
     @Test
-    func holidayBadgeOutranksLunarBadge() async throws {
+    func holidayMarkDrivesDetailWithoutOverridingDayBadge() async throws {
         let clock = try makeClock(at: "2026-02-17T10:00:00Z")
         let model = AppModel(
             clock: clock,
@@ -494,23 +518,37 @@ struct AppModelTests {
 
         await drainUntil(model.holidayMark(for: springFestival) != nil)
 
+        // 锚点日：休/班徽标照常出现，第二行保持农历节日语义，
+        // 详情行显示具体节日名（连续假期仅首日优先展示节日名称）
         #expect(model.holidayMark(for: springFestival) != nil)
-        #expect(model.dayBadge(for: springFestival) == .holiday("春节"))
+        #expect(model.dayBadge(for: springFestival) == .lunarFestival("春节"))
+        #expect(
+            model.holidayDetailText(for: springFestival)
+                == AppText.holidayDetailLine("春节", AppText.holidayOffBadge)
+        )
 
-        model.display(month: CalendarMonthID(year: 2026, month: 1))
-        await drainUntil(
-            model.lunarInformation(
+        // 调休班日与普通日：用初始月为一月的独立模型断言，
+        // 不依赖跨月 prepareMonth 的调度时序。
+        let januaryModel = AppModel(
+            clock: try makeClock(at: "2026-01-03T10:00:00Z"),
+            calendarService: CalendarService(timeZone: Fixture.utc),
+            lunarService: CannedLunarProvider(),
+            holidayService: CannedHolidayProvider()
+        )
+        let workday = CalendarDayID(year: 2026, month: 1, day: 3)
+        await drainUntil(januaryModel.holidayMark(for: workday) != nil)
+
+        // 调休班日：第二行不被公告名覆盖，详情行按公告名归属
+        #expect(januaryModel.dayBadge(for: workday) == .lunarDay("示例"))
+        #expect(
+            januaryModel.holidayDetailText(for: workday)
+                == AppText.holidayDetailLine("元旦", AppText.holidayWorkBadge)
+        )
+        // 普通日仍显示农历徽标
+        #expect(
+            januaryModel.dayBadge(
                 for: CalendarDayID(year: 2026, month: 1, day: 10)
-            ) != nil
-        )
-        // 切月后：节假日标记仍然生效，普通日显示农历徽标
-        #expect(
-            model.dayBadge(for: CalendarDayID(year: 2026, month: 1, day: 3))
-                == .holiday("元旦")
-        )
-        #expect(
-            model.dayBadge(for: CalendarDayID(year: 2026, month: 1, day: 10))
-                == .lunarDay("示例")
+            ) == .lunarDay("示例")
         )
     }
 
@@ -532,14 +570,81 @@ struct AppModelTests {
         let springFestival = CalendarDayID(year: 2026, month: 2, day: 17)
 
         await drainUntil(
-            model.dayBadge(for: springFestival) == .holiday("春节")
+            model.dayBadge(for: springFestival) == .lunarFestival("春节")
         )
 
         store.update { $0.showsChineseHolidays = false }
         await drainMainQueue()
 
+        // 开关只控制法定作息（休/班与详情行）；日期语义徽标不受影响
         #expect(model.holidayMark(for: springFestival) == nil)
         #expect(model.dayBadge(for: springFestival) == .lunarFestival("春节"))
+        #expect(model.holidayDetailText(for: springFestival) == nil)
+    }
+
+    @Test
+    func continuousVacationNamesAnchorAndMiddleDays() async throws {
+        let clock = try makeClock(at: "2026-10-01T10:00:00Z")
+        let model = AppModel(
+            clock: clock,
+            calendarService: CalendarService(timeZone: Fixture.utc),
+            lunarService: CannedLunarProvider(),
+            holidayService: NationalDayHolidayProvider()
+        )
+        await drainUntil(
+            model.holidayMark(
+                for: CalendarDayID(year: 2026, month: 10, day: 1)
+            ) != nil
+        )
+
+        // 锚点日：公历法定节日名（Apple 中国节假日日历口径）
+        let nationalAnchor = CalendarDayID(year: 2026, month: 10, day: 1)
+        #expect(model.dayBadge(for: nationalAnchor) == .solarFestival("国庆节"))
+        #expect(
+            model.holidayDetailText(for: nationalAnchor)
+                == AppText.holidayDetailLine("国庆节", AppText.holidayOffBadge)
+        )
+
+        // 中秋锚点日：详情行只显示当天节日，不与块名里的其他节日并列
+        let midAutumnAnchor = CalendarDayID(year: 2026, month: 10, day: 6)
+        #expect(model.dayBadge(for: midAutumnAnchor) == .lunarFestival("中秋节"))
+        #expect(
+            model.holidayDetailText(for: midAutumnAnchor)
+                == AppText.holidayDetailLine("中秋节", AppText.holidayOffBadge)
+        )
+
+        // 中间日：一次只归属一个节日——不晚于当天最近的锚点
+        //（10月2–5日归国庆节，7–8日归中秋节），显示“假期”后缀
+        #expect(
+            model.holidayDetailText(
+                for: CalendarDayID(year: 2026, month: 10, day: 3)
+            )
+                == AppText.holidayDetailLine(
+                    AppText.holidayVacationBlockName("国庆节"),
+                    AppText.holidayOffBadge
+                )
+        )
+        #expect(
+            model.holidayDetailText(
+                for: CalendarDayID(year: 2026, month: 10, day: 7)
+            )
+                == AppText.holidayDetailLine(
+                    AppText.holidayVacationBlockName("中秋节"),
+                    AppText.holidayOffBadge
+                )
+        )
+
+        // 调休工作日：归属距离最近的锚点节日，不并列罗列块名
+        let precedingWorkday = CalendarDayID(year: 2026, month: 9, day: 28)
+        #expect(
+            model.holidayDetailText(for: precedingWorkday)
+                == AppText.holidayDetailLine("国庆节", AppText.holidayWorkBadge)
+        )
+        let trailingWorkday = CalendarDayID(year: 2026, month: 10, day: 11)
+        #expect(
+            model.holidayDetailText(for: trailingWorkday)
+                == AppText.holidayDetailLine("中秋节", AppText.holidayWorkBadge)
+        )
     }
 
     private func drainMainQueue() async {
@@ -593,6 +698,24 @@ private struct CannedLunarProvider: LunarCalendarProviding {
                 fullDate: "丙午年正月初二",
                 solarTermName: "雨水",
                 nextSolarTerm: SolarTermCountdown(name: "惊蛰", daysRemaining: 15)
+            )
+        }
+        if day == CalendarDayID(year: 2026, month: 10, day: 1) {
+            return LunarDayInformation(
+                badge: .solarFestival("国庆节"),
+                badgeWithoutSolarTerm: .solarFestival("国庆节"),
+                fullDate: "丙午年八月廿一",
+                solarTermName: nil,
+                nextSolarTerm: SolarTermCountdown(name: "寒露", daysRemaining: 7)
+            )
+        }
+        if day == CalendarDayID(year: 2026, month: 10, day: 6) {
+            return LunarDayInformation(
+                badge: .lunarFestival("中秋节"),
+                badgeWithoutSolarTerm: .lunarFestival("中秋节"),
+                fullDate: "丙午年八月廿六",
+                solarTermName: nil,
+                nextSolarTerm: SolarTermCountdown(name: "寒露", daysRemaining: 2)
             )
         }
         return LunarDayInformation(
@@ -672,6 +795,36 @@ private struct CannedHolidayProvider: HolidayProviding {
                     isOffDay: false
                 ),
             ],
+            availabilityByYear: [2026: .published]
+        )
+    }
+}
+
+/// holiday-cn 口径的国庆块替身：区间内每天同名（合并节日名），
+/// 含前后调休班日，复刻 2025 年“国庆节、中秋节”8 天连休结构。
+private struct NationalDayHolidayProvider: HolidayProviding {
+    func holidays(
+        for years: Set<Int>,
+        policy: RefreshPolicy
+    ) async -> HolidaySnapshot {
+        var marksByDay: [CalendarDayID: HolidayMark] = [
+            CalendarDayID(year: 2026, month: 9, day: 28): HolidayMark(
+                name: "国庆节、中秋节",
+                isOffDay: false
+            ),
+            CalendarDayID(year: 2026, month: 10, day: 11): HolidayMark(
+                name: "国庆节、中秋节",
+                isOffDay: false
+            ),
+        ]
+        for day in 1...8 {
+            marksByDay[CalendarDayID(year: 2026, month: 10, day: day)] = HolidayMark(
+                name: "国庆节、中秋节",
+                isOffDay: true
+            )
+        }
+        return HolidaySnapshot(
+            marksByDay: marksByDay,
             availabilityByYear: [2026: .published]
         )
     }

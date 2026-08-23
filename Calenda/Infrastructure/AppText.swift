@@ -92,6 +92,78 @@ enum AppText {
         defaultValue: "退出"
     )
 
+    // MARK: - 主菜单（LSUIElement 应用在设置窗口为 key 时显示）
+
+    static let menuAbout = String(
+        localized: "menu.about",
+        defaultValue: "关于 Calenda"
+    )
+
+    static let menuSettingsItem = String(
+        localized: "menu.settings_item",
+        defaultValue: "设置…"
+    )
+
+    static let menuQuitApp = String(
+        localized: "menu.quit_app",
+        defaultValue: "退出 Calenda"
+    )
+
+    static let menuEdit = String(
+        localized: "menu.edit",
+        defaultValue: "编辑"
+    )
+
+    static let menuUndo = String(
+        localized: "menu.edit.undo",
+        defaultValue: "撤销"
+    )
+
+    static let menuRedo = String(
+        localized: "menu.edit.redo",
+        defaultValue: "重做"
+    )
+
+    static let menuCut = String(
+        localized: "menu.edit.cut",
+        defaultValue: "剪切"
+    )
+
+    static let menuCopy = String(
+        localized: "menu.edit.copy",
+        defaultValue: "拷贝"
+    )
+
+    static let menuPaste = String(
+        localized: "menu.edit.paste",
+        defaultValue: "粘贴"
+    )
+
+    static let menuSelectAll = String(
+        localized: "menu.edit.select_all",
+        defaultValue: "全选"
+    )
+
+    static let menuWindow = String(
+        localized: "menu.window",
+        defaultValue: "窗口"
+    )
+
+    static let menuMinimize = String(
+        localized: "menu.window.minimize",
+        defaultValue: "最小化"
+    )
+
+    static let menuZoom = String(
+        localized: "menu.window.zoom",
+        defaultValue: "缩放"
+    )
+
+    static let menuClose = String(
+        localized: "menu.window.close",
+        defaultValue: "关闭"
+    )
+
     static let settingsTitle = String(
         localized: "settings.title",
         defaultValue: "设置"
@@ -244,6 +316,20 @@ enum AppText {
             locale: .current,
             name,
             status
+        )
+    }
+
+    private static let holidayVacationBlockNameFormat = String(
+        localized: "holiday.vacation_block_name",
+        defaultValue: "%1$@假期"
+    )
+
+    /// 连续假期中间日的详情行块名（公告口径），如“国庆节、中秋节假期”。
+    static func holidayVacationBlockName(_ name: String) -> String {
+        String(
+            format: holidayVacationBlockNameFormat,
+            locale: .current,
+            name
         )
     }
 
@@ -451,6 +537,11 @@ enum AppText {
     static let useCurrentLocation = String(
         localized: "weather.use_current_location",
         defaultValue: "使用当前位置"
+    )
+
+    static let chooseCity = String(
+        localized: "weather.choose_city",
+        defaultValue: "选择城市"
     )
 
     static let moreActions = String(

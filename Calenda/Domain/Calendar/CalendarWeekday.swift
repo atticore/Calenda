@@ -21,4 +21,8 @@ nonisolated enum CalendarWeekday: Int, CaseIterable, Sendable {
         }
         return Array(weekdays[firstIndex...]) + Array(weekdays[..<firstIndex])
     }
+
+    var isWeekend: Bool {
+        self == .saturday || self == .sunday
+    }
 }

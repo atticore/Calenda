@@ -144,11 +144,14 @@ final class AppModel {
         minuteTimer = nil
     }
 
+    /// 点击日格（含相邻月日期）与键盘跨界移动统一走月份准备路径：
+    /// 公历格、选中日、农历与节假日快照一次性原子提交，网格不会先
+    /// 切到只有公历数字的半成品状态再补徽标；同月内选中经准备路径
+    /// 的同步分支即时生效。
     func select(_ day: CalendarDayID) {
-        cancelMonthPreparation()
-        selectedDay = day
-        updateDisplayedMonth(
-            CalendarMonthID(year: day.year, month: day.month)
+        prepareMonth(
+            CalendarMonthID(year: day.year, month: day.month),
+            selecting: day
         )
     }
 
@@ -182,11 +185,13 @@ final class AppModel {
         select(adjustedDay)
     }
 
+    /// 回到今天与跨月选中同一约束：浏览了其他月份时，选中日、
+    /// 网格与农历/节假日一起切回今天的月份，不出现中间半成品帧。
     func returnToToday() {
         refreshFromClock()
-        selectedDay = today
-        updateDisplayedMonth(
-            CalendarMonthID(year: today.year, month: today.month)
+        prepareMonth(
+            CalendarMonthID(year: today.year, month: today.month),
+            selecting: today
         )
     }
 
@@ -286,42 +291,150 @@ final class AppModel {
         showsChineseHolidays ? holidayMarksByDay[day] : nil
     }
 
-    /// 日格第二行徽标：法定节日 > 节气 > 农历节日 > 农历日期（设计 5.4）；
-    /// 各级分别受显示开关控制，节气关闭时降级而非整行消失。
+    /// 日格第二行徽标（设计 5.4）：法定作息由右上角休/班徽标独立
+    /// 表达，第二行只表达日期语义——节气 > 农历节日 > 公历法定节日
+    /// > 农历日期；连续假期中间日不重复节日名，仅锚点日显示节日。
+    /// 节气受专门开关控制；节日名是日期语义，不随“显示农历”隐藏；
+    /// 普通农历日期仅在显示农历时出现。
     func dayBadge(for day: CalendarDayID) -> DayBadge? {
-        if showsChineseHolidays, let mark = holidayMarksByDay[day] {
-            return .holiday(mark.name)
-        }
         guard let lunar = lunarInformationByDay[day] else {
             return nil
         }
-        if case let .solarTerm(name) = lunar.badge, showsSolarTerms {
+        if showsSolarTerms, case let .solarTerm(name) = lunar.badge {
             return .solarTerm(name)
         }
-        guard showsLunar else {
-            return nil
-        }
-        let lunarBadge = showsSolarTerms
-            ? lunar.badge
-            : lunar.badgeWithoutSolarTerm
-        switch lunarBadge {
-        case let .solarTerm(name):
-            return .solarTerm(name)
+        switch lunar.badgeWithoutSolarTerm {
         case let .lunarFestival(name):
             return .lunarFestival(name)
+        case let .solarFestival(name):
+            return .solarFestival(name)
         case let .lunarDay(name):
-            return .lunarDay(name)
+            return showsLunar ? .lunarDay(name) : nil
+        case .solarTerm:
+            // badgeWithoutSolarTerm 按构造不含节气；防御性回退
+            return nil
         }
     }
 
-    private func updateDisplayedMonth(_ newMonth: CalendarMonthID) {
-        cancelMonthPreparation()
-        guard newMonth != displayedMonth else {
-            return
+    /// 详情行节假日文案：锚点日（恰为节日的当天）显示具体节日名，
+    /// 连续假期中间日显示所属节日名 +“假期”后缀，孤立假期日与调休
+    /// 工作日按所属节日归属。合并公告名（如“国庆节、中秋节”）一次
+    /// 只呈现一个节日，与日格徽标的锚点口径一致。
+    func holidayDetailText(for day: CalendarDayID) -> String? {
+        guard let mark = holidayMark(for: day) else {
+            return nil
         }
-        monthNavigationDirection = Self.compare(newMonth, displayedMonth)
-        displayedMonth = newMonth
-        rebuildCells()
+        let status = mark.isOffDay
+            ? AppText.holidayOffBadge
+            : AppText.holidayWorkBadge
+        let name: String
+        if let festivalName = statutoryFestivalName(for: day) {
+            name = festivalName
+        } else {
+            let festivalName = singleFestivalName(for: day, mark: mark)
+            if mark.isOffDay, isInContinuousOffDayBlock(day, name: mark.name) {
+                name = AppText.holidayVacationBlockName(festivalName)
+            } else {
+                name = festivalName
+            }
+        }
+        return AppText.holidayDetailLine(name, status)
+    }
+
+    /// 当天的具体节日名（锚点判定）：农历传统节日（含清明、冬至）
+    /// 或法定公历节日（元旦、劳动节、国庆节）。
+    private func statutoryFestivalName(for day: CalendarDayID) -> String? {
+        lunarInformationByDay[day]?.badgeWithoutSolarTerm.festivalName
+    }
+
+    /// 公告名可能把连休的多个节日合并为一条记录（如 2025 年
+    /// “国庆节、中秋节”）。详情行一次只呈现一个节日：在同名法定
+    /// 记录中找锚点日（恰为节日的天）——休息日归属不晚于当天最近
+    /// 的锚点（10月1–5日归国庆节、6–8日归中秋节），调休工作日
+    /// 归属距离最近的锚点；窗口内找不到锚点时退回首节日名。
+    private func singleFestivalName(
+        for day: CalendarDayID,
+        mark: HolidayMark
+    ) -> String {
+        let components = mark.name.components(separatedBy: "、")
+        guard components.count > 1 else {
+            return mark.name
+        }
+        let anchors = holidayMarksByDay
+            .compactMap { candidateDay, candidateMark ->
+                (day: CalendarDayID, festival: String)?
+            in
+                guard candidateMark.name == mark.name,
+                    let festival = statutoryFestivalName(for: candidateDay),
+                    components.contains(festival)
+                else {
+                    return nil
+                }
+                return (candidateDay, festival)
+            }
+            .sorted { Self.isChronological($0.day, $1.day) }
+        guard !anchors.isEmpty else {
+            return components[0]
+        }
+        if mark.isOffDay {
+            return anchors
+                .last { Self.isChronological($0.day, day) }?
+                .festival ?? anchors[0].festival
+        }
+        return anchors
+            .min { lhs, rhs in
+                let lhsDistance = dayDistance(from: day, to: lhs.day)
+                let rhsDistance = dayDistance(from: day, to: rhs.day)
+                return lhsDistance == rhsDistance
+                    ? Self.isChronological(lhs.day, rhs.day)
+                    : lhsDistance < rhsDistance
+            }?
+            .festival ?? components[0]
+    }
+
+    private static func isChronological(
+        _ lhs: CalendarDayID,
+        _ rhs: CalendarDayID
+    ) -> Bool {
+        (lhs.year, lhs.month, lhs.day) < (rhs.year, rhs.month, rhs.day)
+    }
+
+    private func dayDistance(
+        from lhs: CalendarDayID,
+        to rhs: CalendarDayID
+    ) -> Int {
+        guard
+            let lhsDate = calendarService.noonDate(for: lhs),
+            let rhsDate = calendarService.noonDate(for: rhs)
+        else {
+            return .max
+        }
+        return abs(
+            Calendar.current.dateComponents(
+                [.day],
+                from: lhsDate,
+                to: rhsDate
+            ).day ?? .max
+        )
+    }
+
+    /// 相邻同名休息日记录：当天处于连续假期块中（非孤立单日）。
+    /// holidayMarksByDay 覆盖当前 42 格窗口，块边界落在窗口外时
+    /// 最多退化为孤立口径，不影响正确性。
+    private func isInContinuousOffDayBlock(
+        _ day: CalendarDayID,
+        name: String
+    ) -> Bool {
+        let neighbors = [
+            calendarService.day(byAdding: -1, to: day),
+            calendarService.day(byAdding: 1, to: day),
+        ].compactMap { $0 }
+        return neighbors.contains { neighbor in
+            guard let mark = holidayMarksByDay[neighbor] else {
+                return false
+            }
+            return mark.name == name && mark.isOffDay
+        }
     }
 
     /// 月份切换先准备公历、农历和节假日快照，再在同一轮观察更新中提交。
@@ -674,6 +787,18 @@ final class AppModel {
         }
     }
 
+    /// 面板城市选择：与设置页相同的提交路径（设计 11.3/15.3），
+    /// 经设置变更通知触发城市与天气的原子刷新（设计 12.1/12.3）。
+    func selectCity(_ city: ManualCity) {
+        guard let settings else {
+            return
+        }
+        settings.update {
+            $0.activeLocation = .manual(city)
+            $0.lastManualLocation = city
+        }
+    }
+
     private func registerForSystemChanges() {
         var observers = [
             NotificationCenter.default.addObserver(
@@ -735,7 +860,10 @@ final class AppModel {
         guard let fireDate = TimeBoundary.nextMinute(
             after: clock.now,
             timeZone: calendarService.configuredTimeZone
-        ) else {
+        ), fireDate > Date() else {
+            // 注入时钟可能冻结在过去（测试替身），或系统时钟短暂回拨；
+            // 过去的触发时间会令 Timer 立即触发并反复重排，每轮都会
+            // 取消在途刷新任务。此时放弃本次调度。
             return
         }
         let timer = Timer(fire: fireDate, interval: .zero, repeats: false) { [weak self] _ in
@@ -759,7 +887,9 @@ final class AppModel {
         guard let fireDate = TimeBoundary.nextMidnight(
             after: clock.now,
             timeZone: calendarService.configuredTimeZone
-        ) else {
+        ), fireDate > Date() else {
+            // 同 startMinuteTicker：过去的触发时间会造成立即触发与
+            // 无限重排的自旋，防御注入时钟冻结在过去或系统时钟回拨。
             return
         }
         let timer = Timer(fire: fireDate, interval: .zero, repeats: false) { [weak self] _ in

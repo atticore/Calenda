@@ -11,7 +11,7 @@ import SwiftUI
 /// 单实例设置窗口（设计 15.1）：普通 NSWindow 承载
 /// NSHostingView<SettingsRootView>，首次使用创建，之后复用。
 @MainActor
-final class SettingsWindowController {
+final class SettingsWindowController: NSObject, NSWindowDelegate {
     private enum Window {
         static let contentSize = CGSize(width: 580, height: 460)
         static let minContentSize = CGSize(width: 480, height: 400)
@@ -43,13 +43,57 @@ final class SettingsWindowController {
                 }
             )
         )
+        super.init()
     }
 
     /// 激活应用并置前；窗口已存在时不重复创建。
     func show() {
         let window = window ?? makeWindow()
         correctFrameToVisibleScreen(window)
-        NSApplication.shared.activate()
+        presentAsRegularApp(window)
+    }
+
+    // MARK: - NSWindowDelegate
+
+    /// 设置窗口关闭后恢复 accessory 形态：菜单栏退场、Dock 图标消失。
+    /// 打开设置时主面板已先行关闭（设计 15.1），无需考虑面板共存。
+    func windowWillClose(_ notification: Notification) {
+        guard notification.object as? NSWindow === window else {
+            return
+        }
+        if NSApp.activationPolicy() == .regular {
+            NSApp.setActivationPolicy(.accessory)
+        }
+    }
+
+    // MARK: - 激活序列
+
+    /// accessory 应用的普通窗口直接 activate() 会被协作式激活拒绝
+    /// （窗口置前但键盘/⌘C/V 落空）。临时切换 regular 让菜单栏出现、
+    /// 窗口可靠成为 key；窗口关闭时还原 accessory。
+    private func presentAsRegularApp(_ window: NSWindow) {
+        let wasAccessory = NSApp.activationPolicy() == .accessory
+        if wasAccessory {
+            NSApp.setActivationPolicy(.regular)
+        }
+        // 用户从面板/右键菜单显式打开设置，与状态项点击同属
+        // activate(ignoringOtherApps:) 仍然可靠的用户交互场景。
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        guard wasAccessory else {
+            return
+        }
+        // 策略切换经窗口服务器异步落地：下一个主线程 tick 确认 key 状态
+        Task { @MainActor [weak self] in
+            self?.confirmWindowKeyStatus(window)
+        }
+    }
+
+    private func confirmWindowKeyStatus(_ window: NSWindow) {
+        guard window.isVisible, !window.isKeyWindow else {
+            return
+        }
+        NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
     }
 
@@ -64,6 +108,7 @@ final class SettingsWindowController {
         window.contentView = hostingView
         window.contentMinSize = Window.minContentSize
         window.isReleasedWhenClosed = false
+        window.delegate = self
         window.setFrameAutosaveName(Window.frameAutosaveName)
         if window.frame.origin == .zero {
             window.center()

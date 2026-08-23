@@ -28,6 +28,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		FE02ECB33039EDC500A7F8A3 /* AGENTS.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = AGENTS.md; sourceTree = "<group>"; };
 		FE0A0003000000000000000A /* DESIGN.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = DESIGN.md; sourceTree = "<group>"; };
 		FE0A0004000000000000000A /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		FEC578DD3035B030008DDEFA /* Calenda.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Calenda.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -36,6 +37,11 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		FE02ECB43039EE5900A7F8A3 /* .agents */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = .agents;
+			sourceTree = "<group>";
+		};
 		FEC578DF3035B030008DDEFA /* Calenda */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Calenda;
@@ -76,6 +82,8 @@
 		FEC578D43035B030008DDEFA = {
 			isa = PBXGroup;
 			children = (
+				FE02ECB43039EE5900A7F8A3 /* .agents */,
+				FE02ECB33039EDC500A7F8A3 /* AGENTS.md */,
 				FE0A0003000000000000000A /* DESIGN.md */,
 				FE0A0004000000000000000A /* README.md */,
 				FEC578DF3035B030008DDEFA /* Calenda */,
