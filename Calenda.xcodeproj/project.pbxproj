@@ -29,7 +29,6 @@
 
 /* Begin PBXFileReference section */
 		FE02ECB33039EDC500A7F8A3 /* AGENTS.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = AGENTS.md; sourceTree = "<group>"; };
-		FE0A0003000000000000000A /* DESIGN.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = DESIGN.md; sourceTree = "<group>"; };
 		FE0A0004000000000000000A /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		FEC578DD3035B030008DDEFA /* Calenda.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Calenda.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FEC578EA3035B033008DDEFA /* CalendaTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CalendaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -42,17 +41,17 @@
 			path = .agents;
 			sourceTree = "<group>";
 		};
-		FEC578DF3035B030008DDEFA /* Calenda */ = {
+		FE3FFCA0303C152100F01890 /* Calenda */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Calenda;
 			sourceTree = "<group>";
 		};
-		FEC578ED3035B033008DDEFA /* CalendaTests */ = {
+		FE3FFCEB303C153600F01890 /* CalendaTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = CalendaTests;
 			sourceTree = "<group>";
 		};
-		FEC578F73035B033008DDEFA /* CalendaUITests */ = {
+		FE3FFCFC303C154500F01890 /* CalendaUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = CalendaUITests;
 			sourceTree = "<group>";
@@ -84,11 +83,10 @@
 			children = (
 				FE02ECB43039EE5900A7F8A3 /* .agents */,
 				FE02ECB33039EDC500A7F8A3 /* AGENTS.md */,
-				FE0A0003000000000000000A /* DESIGN.md */,
 				FE0A0004000000000000000A /* README.md */,
-				FEC578DF3035B030008DDEFA /* Calenda */,
-				FEC578ED3035B033008DDEFA /* CalendaTests */,
-				FEC578F73035B033008DDEFA /* CalendaUITests */,
+				FE3FFCA0303C152100F01890 /* Calenda */,
+				FE3FFCEB303C153600F01890 /* CalendaTests */,
+				FE3FFCFC303C154500F01890 /* CalendaUITests */,
 				FEC578DE3035B030008DDEFA /* Products */,
 			);
 			sourceTree = "<group>";
@@ -117,7 +115,7 @@
 			buildRules = (
 			);
 			fileSystemSynchronizedGroups = (
-				FEC578DF3035B030008DDEFA /* Calenda */,
+				FE3FFCA0303C152100F01890 /* Calenda */,
 			);
 			name = Calenda;
 			packageProductDependencies = (
@@ -141,7 +139,7 @@
 				FEC578EC3035B033008DDEFA /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				FEC578ED3035B033008DDEFA /* CalendaTests */,
+				FE3FFCEB303C153600F01890 /* CalendaTests */,
 			);
 			name = CalendaTests;
 			productName = CalendaTests;
@@ -162,7 +160,7 @@
 				FEC578F63035B033008DDEFA /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				FEC578F73035B033008DDEFA /* CalendaUITests */,
+				FE3FFCFC303C154500F01890 /* CalendaUITests */,
 			);
 			name = CalendaUITests;
 			productName = CalendaUITests;

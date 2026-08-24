@@ -103,6 +103,38 @@ For implementation work:
 
 Do not claim success until verification succeeds.
 
+### 3.1 Select the verification tool
+Choose the tool according to the behavior being verified:
+
+- Use Xcode automation for project structure, schemes, destinations, builds,
+  tests, compiler issues, build logs, console output, and SwiftUI previews.
+- Use Computer Use for the running macOS application when the assertion is
+  about what a user can click, focus, type, see, or dismiss. Use it for
+  NSStatusItem and NSPanel interactions, settings-window transitions,
+  keyboard handling, display/Spaces behavior, and layout screenshots.
+- Use `xcodebuild` for CI, headless execution, reproducible command-line
+  failures, and result-bundle collection when Xcode automation is unavailable.
+
+Do not run the same build or test redundantly through multiple layers. A
+successful Xcode build proves compilation; it does not prove live AppKit
+behavior. If Computer Use is unavailable for a change that requires it, report
+runtime verification as not performed rather than inferring it from a build.
+
+### 3.2 Verification matrix
+
+| Change category | Minimum verification |
+|-----------------|----------------------|
+| Domain or service logic | Relevant serial unit tests |
+| SwiftUI content or state | Build, relevant unit/UI tests, Preview or snapshot when visual output matters |
+| NSStatusItem or NSPanel lifecycle | Build, relevant tests, live-app Computer Use interaction |
+| Panel geometry or pointer behavior | Live-app Computer Use interaction plus an inspected screenshot |
+| Test infrastructure or scheme | Run the affected test target and inspect the result bundle or Xcode test result |
+
+For UI tests, keep network, location prompts, user defaults, and third-party
+input-method state deterministic. Report environmental skips separately from
+failures, and do not treat a suite that skipped its main interaction as fully
+verified.
+
 ---
 
 ## 4. SwiftUI Verification
@@ -153,6 +185,12 @@ Depending on scope, verify:
 - visible-screen bounds
 - multiple displays
 - Spaces
+
+Use Computer Use for these interactions when available. Prefer accessibility
+tree actions for control discovery and screenshots for visual or geometry
+assertions. Re-read the current app state after each interaction; do not reuse
+stale UI element indices. If the test setup terminates stale Calenda processes,
+do not run it alongside a manually launched instance or another UI-test session.
 
 Do not attempt to solve lifecycle bugs with arbitrary delays unless there is a
 documented OS timing requirement.
@@ -246,9 +284,12 @@ Report:
 
 - files/components changed
 - behavior changed
+- verification tools used (Xcode automation, Computer Use, or `xcodebuild`)
 - tests performed
 - build result
 - runtime or Preview verification when applicable
+- result-bundle or screenshot artifacts when produced
+- skipped tests and their environment limitations
 - any remaining limitation
 
 Never report "verified" if the relevant command, test, preview, or runtime

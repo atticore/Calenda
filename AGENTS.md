@@ -460,6 +460,25 @@ Use shell/xcodebuild when:
 Do not repeatedly run both MCP build and xcodebuild if one successful build
 already provides sufficient evidence.
 
+### Automation tool selection
+Use the verification tool that matches the evidence required:
+
+- Xcode automation is the default for structured project operations: discover
+  schemes, targets, destinations, build, test, compiler diagnostics, build
+  logs, console output, and SwiftUI previews.
+- Computer Use is required for visible macOS behavior that Xcode automation
+  cannot establish: status-item clicks, NSPanel focus and dismissal, settings
+  windows, keyboard events, multiple displays, Spaces, and final layout
+  screenshots.
+- `xcodebuild` is the reproducible command-line path for CI, headless runs,
+  result-bundle collection, or reproducing a CLI-specific failure.
+
+Build/test success is not runtime evidence for AppKit behavior. A change to
+NSStatusItem, NSPanel, window lifecycle, focus, event monitors, positioning,
+or visible layout requires a live-app interaction and, when geometry matters,
+an inspected screenshot. Do not claim runtime verification when only a build
+or unit-test result was obtained.
+
 ---
 
 ## Build Verification
@@ -488,6 +507,11 @@ Use serial unit-test execution for deterministic local verification of the
 current async test suite. A parallel-only failure must be rerun in isolation or
 serially before treating it as a product regression.
 
+For automated or CI runs, save a result bundle and use an isolated DerivedData
+directory so logs, screenshots, test skips, and diagnostics remain attributable
+to that run. A green result with skipped UI tests is not equivalent to a full UI
+verification; report skipped tests and their environment reason explicitly.
+
 For layout UI tests:
 
 - open the panel through the existing UI-test injection when the test is about
@@ -499,6 +523,18 @@ For layout UI tests:
 - assert that the Today section keeps its vertical anchor across selected dates
   with different optional content
 - save and inspect a final screenshot attachment
+- use stable accessibility identifiers for selectors; localized labels are for
+  content assertions, not the primary control identity
+
+The current UI test setup terminates processes named `Calenda` before each
+case to avoid stale status-item instances. Do not run it concurrently with a
+manually launched Calenda instance or another UI-test session. If that cleanup
+strategy changes, update this constraint and the test isolation mechanism
+together.
+
+Treat `XCTSkip` as an environment limitation, not as evidence that the skipped
+behavior passed. Lock-screen, Secure Input, inaccessible display, and status
+item availability conditions must be visible in the test report.
 
 If Xcode leaves a partially signed test bundle in DerivedData, run
 `xcodebuild ... clean` once and rebuild. Never change signing, entitlements, or
