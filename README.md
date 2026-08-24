@@ -1,50 +1,40 @@
 # Calenda
 
-Calenda 是仅驻留在 macOS 菜单栏的原生日历工具。它在一个紧凑的原生
-面板中提供公历月历、农历、节气、中国法定节假日、调休与当前天气。
+Calenda 是一款原生 macOS 菜单栏日历。点击菜单栏状态项可打开固定尺寸的日历面板，快速查看公历、农历、节气、中国法定节假日与当前天气；不需要账号，也不依赖后端服务。
 
-设计背景和架构说明见 [DESIGN.md](DESIGN.md)；当前面板尺寸与布局常量
-以 [PanelConfiguration.swift](Calenda/AppKitShell/PanelConfiguration.swift)
-和 SwiftUI 实现为准。
+面板尺寸与右栏宽度以 [PanelConfiguration.swift](Calenda/AppKitShell/PanelConfiguration.swift) 为唯一来源。
 
-## 主要功能
+## 当前功能
 
-- 公历月历，以及周一/周日起始设置
-- 农历日期、农历节日和二十四节气
-- 中国法定节假日、调休标记与离线内置快照
-- Open-Meteo 当前天气、缓存、手动选城与按需定位
-- 键盘日期导航、月份选择器、回到今天和 Escape 关闭
-- 原生菜单栏状态项、设置窗口、多显示器与 Spaces 支持
+- 42 格公历月历，支持周一、周日或跟随系统作为每周首日。
+- 农历、农历节日和二十四节气；Tyme4Swift 仅在应用自有适配层中使用。
+- 中国法定节假日和调休标记；安装包内置 2025、2026 年快照，支持受信任镜像链的条件更新与最后有效缓存回退。
+- Open-Meteo 当前天气、天气缓存、摄氏/华氏切换、默认北京、手动选城与按需当前位置。
+- 月份选择器、日期键盘导航、回到今天、Escape 关闭，以及状态项右键的设置和退出菜单。
+- 单实例原生设置窗口，包含显示、天气、节假日更新、登录时启动及缓存/位置清理。
 
-## 面板布局
+## 面板与交互
 
-当前面板内容尺寸为 590 × 370 pt，保持固定、紧凑且适合菜单栏快速查看：
+面板内容尺寸固定为 590 × 370 pt，右侧详情栏宽 160 pt。月历在左侧，右栏的选中日期位于顶部，选中日期的农历/节气/节假日占用固定的中部槽位；“今天”的天气和节气固定在底部，因此切换日期或天气状态不会推动下方内容。
 
-- 左侧月历保留稳定宽度，日期格不会因右栏调整而缩小。
-- 右侧详情栏宽 160 pt。
-- 选中日期固定在右上，显示日期数字、星期、农历、节气或节假日。
-- 中部为选中日期的扩展信息预留固定槽位。
-- “今天”的天气和节气固定在右下，不随选中日期变化。
-- 可选内容和天气状态使用固定高度，避免界面上下跳动。
+顶部提供月份选择、上/下月、回到今天和设置。日期格可点击；方向键按天或按周移动，Command 加方向键按月移动，Option 加方向键按年移动，Command + T 回到今天。
 
-年月选择器、今天按钮与城市选择均提供符合 macOS 习惯的悬浮反馈；
-悬浮背景和实际点击区域保持一致，城市入口不会铺满整行。
+## 离线、网络与隐私
 
-## 离线与隐私
+公历、农历和节气可离线使用。节假日与天气均先使用内置数据或本地缓存，再按策略后台刷新；网络失败不会阻止月历显示。
 
-公历、农历和节气可完全离线使用。节假日和天气不可用时会显示缓存、
-最后一次有效数据或明确的降级状态，不会阻止月历显示。
+位置权限不会在启动时请求。用户仅在选择“使用当前位置”时触发一次性定位，也可始终使用默认北京或手动城市。应用不实现账号、遥测、分析或服务端。网络请求仅面向 holiday-cn 的固定镜像与 Open-Meteo 的固定 HTTPS 主机，并校验重定向目标。
 
-位置权限是可选的。用户可以独立使用默认北京或手动选择城市；只有主动
-选择“使用当前位置”时才需要位置能力。应用不包含账号、分析或遥测。
+## 技术构成
 
-## 系统要求
-
-- macOS 26+
-- Xcode 27 beta 5+
-- Swift 6.4 编译器，Swift 6 语言模式
+- macOS 26+、Swift 6 语言模式、完整 Strict Concurrency 检查。
+- AppKit 维护 NSStatusItem、NSPanel、定位、焦点、外部点击关闭与设置窗口；SwiftUI 负责面板和设置内容。
+- AppModel 是 MainActor 上的可观察 UI 状态所有者；LunarService、HolidayService 和 WeatherService 使用 actor 隔离。
+- 小型偏好存储在 UserDefaults；天气和节假日缓存存储在 Application Support 下的 Calenda 子目录。
 
 ## 构建与测试
+
+项目共享 scheme 为 Calenda。使用支持 macOS 26 SDK 的 Xcode 27 beta 5 或更新版本执行：
 
 ```bash
 xcodebuild -project Calenda.xcodeproj -scheme Calenda \
@@ -60,43 +50,8 @@ xcodebuild -project Calenda.xcodeproj -scheme Calenda \
   -only-testing:CalendaUITests/CalendaUITests/testCombinedHolidayNamesOnlyAnchorsInDayCells
 ```
 
-布局 UI 测试会验证：切换月份时右侧工具栏不移动；选择具有不同节假日
-内容的日期时，“今天”区域不移动；并保存最终面板截图供视觉检查。
+单元测试覆盖月历计算、农历适配、节假日和天气缓存/网络回退、位置、设置、菜单栏图标和面板状态机。UI 测试覆盖状态项、键盘关闭、月份选择器、设置窗口与右栏布局锚点；涉及面板生命周期、定位或多显示器的改动仍需在真实 macOS 环境验证。
 
-## 实施进度
+## 当前边界
 
-| 阶段 | 内容 | 状态 |
-|---|---|---|
-| Phase 0 | AppKit 外壳：状态项、面板定位、焦点、键盘导航 | ✅ 完成 |
-| Phase 1 | 离线核心：公历/农历/节气、动画、节假日内置快照与网络更新 | ✅ 完成 |
-| Phase 2 | 节假日：holiday-cn 三镜像条件更新、设置页检查入口 | ✅ 完成 |
-| Phase 3 | 天气与位置：Open-Meteo 当前天气、缓存策略、手动选城、CoreLocation 一次性定位、隐私与存储清理 | ✅ 完成 |
-| Phase 4 | 发布质量：性能、签名公证、第三方声明、LICENSE | ⬜ 待实施 |
-
-## Shell Spike 实机验证矩阵
-
-设计第 22 章将以下链路列为 Phase 0 阻塞门禁：
-状态项点击 → 面板定位 → 激活 → 键盘焦点 → 方向键导航 → Escape/外部点击关闭。
-在进入后续阶段前，以下场景需逐项在实机上人工验证并更新本表。
-
-| 场景 | 状态 | 验证方式 |
-|---|---|---|
-| 普通桌面：打开/关闭/键盘导航/Escape | ✅ 通过 | XCUITest `testStatusItemTogglesPanel` / `testEscapeClosesPanel` + 实机截图 |
-| 其他应用前台时打开面板 | ✅ 通过 | 实机截图（navigation 阶段） |
-| 面板内键盘导航（方向键/Command/Option/Command+T） | ✅ 通过 | 实机截图（keyboard-navigation 阶段） |
-| 年月选择器 popover（打开/选择/Escape 分层关闭） | ✅ 通过 | 实机截图（month-picker 阶段） |
-| 右键状态项弹出设置/退出菜单 | 🔶 已实现，待实机验证 | stage 0.7 引入 |
-| 设置窗口单实例、Command + , 打开 | 🔶 已实现，待实机验证 | stage 0.7 引入 |
-| 全屏应用（fullScreenAuxiliary）| ⬜ 待验证 | 人工 |
-| 其他 Space（canJoinAllSpaces）| ⬜ 待验证 | 人工 |
-| Stage Manager | ⬜ 待验证 | 人工 |
-| 副显示器 / 负坐标屏幕 | 🔶 已实现，待实机验证 | PanelPositioner 几何有单元测试；UI 测试在该几何下按环境守卫跳过 |
-| 菜单栏自动隐藏 | ⬜ 待验证 | 人工 |
-| 刘海屏（visibleFrame 收敛）| ⬜ 待验证 | 人工 |
-| 快速连击状态项（状态机幂等）| ✅ 通过 | XCUITest toggle 重试循环 + PanelVisibilityStateMachineTests |
-| 点击外部关闭且无监视器残留 | 🔶 已实现，待实机验证 | 失活关闭路径经窗口服务器诊断人工验证（orderOut 后 onscreen=false） |
-
-> 注意：UI 测试会按 accessibility label 匹配状态项，运行前请关闭其他
-> Calenda 实例（测试 setUp 已自动清理同名进程并等待退出）。锁屏、
-> Secure Input 被输入法工具持有、或副屏位于主屏上方时，受影响的
-> 用例会以明确原因跳过而非误报失败。
+仓库尚未包含 CI 配置、LICENSE、THIRD_PARTY_NOTICES、发布签名/公证流程或 Release 产物。这些属于发布工作，而不是当前可构建应用的组成部分。

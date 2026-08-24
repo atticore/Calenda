@@ -8,8 +8,8 @@ Calenda is a native macOS menu-bar calendar application.
 Technology:
 
 - Xcode 27 beta 5
-- Swift 6.4 compiler
-- Swift 6 language mode
+- Swift 6 language mode (SWIFT_VERSION = 6.0)
+- complete strict-concurrency checking
 - SwiftUI + AppKit hybrid architecture
 - AppKit owns menu-bar and panel/window lifecycle.
 - SwiftUI owns application content views.
@@ -290,6 +290,21 @@ Before adding a third-party package:
 5. Avoid adding packages for trivial utilities.
 
 Do not add or upgrade dependencies opportunistically during unrelated work.
+
+---
+
+## Documentation Accuracy
+
+README.md documents the current repository, not a product roadmap. Before
+claiming a feature, build pipeline, release process, license, CI workflow, or
+verification result exists, confirm the corresponding implementation or
+artifact is present in the repository.
+
+When a behavior changes, update README.md if it changes a user-visible
+capability, supported environment, privacy boundary, build command, or known
+limitation. Keep implementation details scoped to the source files that own
+them; if prose mentions panel geometry, identify PanelConfiguration as its
+source of truth rather than creating a second normative definition.
 
 ---
 

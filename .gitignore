@@ -1,14 +1,19 @@
-# Xcode user state
+# Xcode user state and build products
 xcuserdata/
 *.xcuserstate
+*.xcscmblueprint
+*.moved-aside
 DerivedData/
+*.xcresult/
+*.xcarchive/
+
+# Swift Package Manager build output
+.build/
 
 # Local tool artifacts
 .mimosa/
 .review-artifacts/
+.codegraph/
 
 # macOS
 .DS_Store
-
-# Input source switcher build output (built on demand by test scheme)
-Tools/InputSourceSwitcher/.build/
