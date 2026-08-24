@@ -98,8 +98,8 @@ nonisolated struct WeatherLocation: Sendable, Equatable, Codable {
         )
     }
 
-    /// 由持久化的位置选择解析查询城市；当前位置在定位服务接入前
-    /// 返回 nil（不静默回退默认城市，设计 11.3）。
+    /// 由持久化的位置选择解析查询城市；当前位置由定位服务解析，
+    /// 失败时由上层天气流程回退默认城市。
     static func resolving(_ selection: LocationSelection) -> WeatherLocation? {
         switch selection {
         case .defaultCity:

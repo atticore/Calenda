@@ -11,11 +11,10 @@ import SwiftUI
 /// MVP 第一版设置页（设计 15.2 的通用与启动分组）；
 /// 天气、节假日与隐私分组随 Phase 2/3 补充。
 struct SettingsRootView: View {
-    /// 城市来源选项（设计 11.1）：manual 无已存城市时不可选。
-    private enum CitySource: Hashable {
-        case defaultCity
-        case manual
-        case currentLocation
+    private enum WeatherLayout {
+        static let locationPickerSymbol = "chevron.down"
+        static let locationRowSpacing: CGFloat = 4
+        static let locationMinimumSpacing: CGFloat = 12
     }
 
     private let store: any SettingsProviding
@@ -23,7 +22,7 @@ struct SettingsRootView: View {
     private let holidayService: HolidayChecking
     private let weatherService: WeatherRefreshing
     private let locationService: any Locating
-    private let citySearchModel: CitySearchModel
+    private let citySearcher: any CitySearching
     private let visibleHolidayYearsProvider: () -> Set<Int>
     @State private var loginState: LoginItemState = .notRegistered
     @State private var loginItemErrorText: String?
@@ -31,9 +30,8 @@ struct SettingsRootView: View {
     @State private var isCheckingHolidayUpdates = false
     @State private var weatherStatusText: String?
     @State private var isRefreshingWeather = false
-    @State private var cityQuery = ""
-    @State private var locationStatusText: String?
     @State private var isResolvingLocation = false
+    @State private var isLocationPickerPresented = false
     @State private var isConfirmingCacheClear = false
     @State private var isClearingCaches = false
     @State private var cacheClearResultText: String?
@@ -52,16 +50,8 @@ struct SettingsRootView: View {
         self.holidayService = holidayService
         self.weatherService = weatherService
         self.locationService = locationService
-        let searchModel = CitySearchModel(searcher: citySearcher)
-        citySearchModel = searchModel
+        self.citySearcher = citySearcher
         self.visibleHolidayYearsProvider = visibleHolidayYearsProvider
-        // 城市搜索只有在用户选中明确结果后才提交（设计 15.3）。
-        searchModel.onSelect = { city in
-            store.update {
-                $0.activeLocation = .manual(city)
-                $0.lastManualLocation = city
-            }
-        }
     }
 
     var body: some View {
@@ -167,19 +157,7 @@ struct SettingsRootView: View {
             }
             .pickerStyle(.segmented)
 
-            Picker(
-                AppText.settingsCitySource,
-                selection: citySourceBinding
-            ) {
-                Text(AppText.locationDefaultCity)
-                    .tag(CitySource.defaultCity)
-                Text(manualCityLabel)
-                    .tag(CitySource.manual)
-                    .disabled(store.settings.lastManualLocation == nil)
-                Text(AppText.locationCurrent)
-                    .tag(CitySource.currentLocation)
-            }
-            .pickerStyle(.segmented)
+            weatherLocationRow
 
             if isResolvingLocation {
                 HStack(spacing: 4) {
@@ -190,12 +168,6 @@ struct SettingsRootView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            if let locationStatusText {
-                Text(locationStatusText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
             HStack {
                 Button(AppText.refreshWeather) {
                     refreshWeather()
@@ -213,106 +185,75 @@ struct SettingsRootView: View {
                     .foregroundStyle(.secondary)
             }
 
-            citySearchField
         }
     }
 
-    /// 手动城市搜索（设计 11.3）：防抖与最短输入由 CitySearchModel
-    /// 依据 LocationSearchPolicy 处理；结果必须显示行政区与国家。
-    private var citySearchField: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            TextField(
-                AppText.citySearchPlaceholder,
-                text: $cityQuery
-            )
-            .onChange(of: cityQuery) { _, newValue in
-                citySearchModel.queryDidChange(newValue)
-            }
-
-            switch citySearchModel.phase {
-            case .idle:
-                EmptyView()
-            case .searching:
-                Text(AppText.citySearchSearching)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            case .empty:
-                Text(AppText.citySearchEmpty)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            case let .failed(error):
-                Text(AppText.weatherUnavailableText(error))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            case let .results(cities):
-                ForEach(cities, id: \.self) { city in
-                    Button {
-                        citySearchModel.select(city)
-                    } label: {
-                        HStack {
-                            Text(city.name)
-                                .foregroundStyle(.primary)
-                            Text(city.regionDetail)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .buttonStyle(.plain)
+    private var weatherLocationRow: some View {
+        HStack {
+            Text(AppText.settingsWeatherLocation)
+            Spacer(minLength: WeatherLayout.locationMinimumSpacing)
+            Button {
+                isLocationPickerPresented = true
+            } label: {
+                HStack(spacing: WeatherLayout.locationRowSpacing) {
+                    Text(weatherLocationDisplayName)
+                        .lineLimit(1)
+                    Image(systemName: WeatherLayout.locationPickerSymbol)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
                 }
             }
-        }
-    }
-
-    private var manualCityLabel: String {
-        if case let .manual(city) = store.settings.activeLocation {
-            return city.name
-        }
-        return store.settings.lastManualLocation?.name ?? AppText.locationManual
-    }
-
-    /// 城市来源切换（设计 13.4）：当前位置先完成一次性定位再整体
-    /// 提交；拒绝或失败时回滚选择并保留手动选城入口。
-    private var citySourceBinding: Binding<CitySource> {
-        Binding(
-            get: { currentCitySource },
-            set: { newValue in
-                switch newValue {
-                case .defaultCity:
-                    store.update { $0.activeLocation = .defaultCity }
-                case .manual:
-                    guard let city = store.settings.lastManualLocation else {
-                        return
-                    }
-                    store.update { $0.activeLocation = .manual(city) }
-                case .currentLocation:
-                    resolveCurrentLocation()
-                }
+            .buttonStyle(.bordered)
+            .help(AppText.settingsWeatherLocationChange)
+            .accessibilityLabel(AppText.settingsWeatherLocationChange)
+            .accessibilityValue(weatherLocationDisplayName)
+            .popover(
+                isPresented: $isLocationPickerPresented,
+                arrowEdge: .bottom
+            ) {
+                SettingsWeatherLocationPicker(
+                    searcher: citySearcher,
+                    currentSelection: store.settings.activeLocation,
+                    recentCity: store.settings.lastManualLocation,
+                    selectCity: selectManualCity,
+                    useCurrentLocation: useCurrentLocation,
+                    restoreDefaultCity: restoreDefaultCity,
+                    onFinished: { isLocationPickerPresented = false }
+                )
             }
-        )
+        }
     }
 
-    private var currentCitySource: CitySource {
+    private var weatherLocationDisplayName: String {
         switch store.settings.activeLocation {
         case .defaultCity:
-            return .defaultCity
-        case .manual:
-            return .manual
+            return WeatherLocation.defaultCity.displayName
+        case let .manual(city):
+            return WeatherLocation(city: city).displayName
         case .currentLocation:
-            return .currentLocation
+            return AppText.locationCurrent
         }
     }
 
-    private func resolveCurrentLocation() {
-        locationStatusText = nil
-        // 由 AppModel 统一执行定位与天气刷新；设置页不预先请求位置，
-        // 避免刚完成授权时发起第二个并发 CoreLocation 请求。
+    private func selectManualCity(_ city: ManualCity) {
+        store.update {
+            $0.activeLocation = .manual(city)
+            $0.lastManualLocation = city
+        }
+    }
+
+    private func useCurrentLocation() {
         store.update { $0.activeLocation = .currentLocation }
     }
 
+    private func restoreDefaultCity() {
+        store.update { $0.activeLocation = .defaultCity }
+    }
+
     /// 手动刷新当前城市的天气（设计 12.3：城市改变、手动刷新允许）；
-    /// 当前位置先完成一次性定位解析。
+    /// 当前位置先完成一次性定位解析，失败回退到默认城市。
     private func refreshWeather() {
         if case .currentLocation = store.settings.activeLocation {
-            locationStatusText = nil
             isResolvingLocation = true
             let locationService = locationService
             Task { @MainActor in
@@ -322,7 +263,8 @@ struct SettingsRootView: View {
                     await fetchWeather(for: location)
                 } catch {
                     isResolvingLocation = false
-                    locationStatusText = AppText.locationDeniedHint
+                    store.update { $0.activeLocation = .defaultCity }
+                    await fetchWeather(for: WeatherLocation.defaultCity)
                 }
             }
             return

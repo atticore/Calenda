@@ -617,10 +617,22 @@ final class AppModel {
                 guard !Task.isCancelled else {
                     return
                 }
-                let location = try await Self.resolve(
-                    selection,
-                    using: locationService
-                )
+                let location: WeatherLocation
+                do {
+                    location = try await Self.resolve(
+                        selection,
+                        using: locationService
+                    )
+                } catch {
+                    guard !Task.isCancelled else {
+                        return
+                    }
+                    guard selection.isCurrentLocation else {
+                        throw error
+                    }
+                    self?.fallbackToDefaultCity(requestID: requestID)
+                    return
+                }
                 guard !Task.isCancelled else {
                     return
                 }
@@ -666,7 +678,7 @@ final class AppModel {
     }
 
     /// 手动/默认城市为同步解析；当前位置触发一次性定位与
-    /// 反向地理编码（设计 11），失败按 locationUnavailable 抛出。
+    /// 反向地理编码（设计 11），失败由天气流程回退到默认城市。
     private static func resolve(
         _ selection: LocationSelection,
         using locationService: any Locating
@@ -678,6 +690,19 @@ final class AppModel {
             throw UserFacingError.locationUnavailable
         }
         return location
+    }
+
+    /// 定位不可用时回到默认城市，并通过设置通知触发唯一的后续刷新。
+    /// 持久化回退可以避免每次打开面板都重复请求已不可用的定位权限。
+    private func fallbackToDefaultCity(requestID: Int) {
+        guard requestID == weatherRequestID else {
+            return
+        }
+        guard settings?.settings.activeLocation.isCurrentLocation == true else {
+            return
+        }
+        isResolvingCurrentLocation = false
+        settings?.update { $0.activeLocation = .defaultCity }
     }
 
     /// 城市确定后才决定是否保留旧内容：同城继续展示原快照，

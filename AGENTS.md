@@ -460,6 +460,49 @@ Use shell/xcodebuild when:
 Do not repeatedly run both MCP build and xcodebuild if one successful build
 already provides sufficient evidence.
 
+### Live App Launch Discipline
+Runtime verification must use one clearly identified Calenda build and one
+launch path at a time. Calenda is an LSUIElement menu-bar app, so a successful
+launch may show no normal window until the status item is clicked.
+
+Before launching a temporary build:
+
+- Use a unique, isolated DerivedData directory for the run. Do not reuse a
+  previous temporary directory when another Calenda process may still refer to
+  it.
+- Resolve and record the canonical absolute app path after the build. Do not
+  mix `/Applications/Calenda.app`, Xcode's DerivedData product, `.build`
+  products, and the temporary product in one verification run.
+- Check for existing Calenda processes and identify their executable paths.
+  A process from another app copy must not be mistaken for the build being
+  verified.
+- Use one launcher only: Xcode launch, the UI-test runner, or one `open -n`
+  invocation. Do not start a second copy because a Computer Use or launch call
+  timed out; a timeout does not prove that the first launch failed.
+
+If a launch or Computer Use state call times out:
+
+1. Check whether the exact target executable is already running.
+2. Read recent Calenda logs and inspect the process path before deciding to
+   relaunch.
+3. If the target is running, reuse that instance and continue from its current
+   UI state.
+4. If duplicate target instances exist, terminate only those exact temporary
+   processes, then launch once. Do not broadly terminate a user's installed
+   Calenda copy unless the test isolation mechanism explicitly requires it.
+5. If no target process exists, launch once and wait for the status item or
+   test accessibility tree before taking further action.
+
+When a bundle identifier is shared by multiple app copies, use the full
+canonical app path for app automation. Do not guess from an ambiguous bundle
+identifier or display name. Keep manual Computer Use verification separate from
+the UI-test runner; never run both against Calenda concurrently.
+
+For every temporary runtime run, keep the result bundle, test log, and final
+screenshot associated with the same DerivedData/run directory. At handoff,
+report whether the temporary process was stopped and which app path and test
+result were actually verified.
+
 ### Automation tool selection
 Use the verification tool that matches the evidence required:
 

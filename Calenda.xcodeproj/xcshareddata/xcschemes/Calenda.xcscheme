@@ -1,50 +1,101 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Scheme LastUpgradeVersion="2700" version="1.7">
-   <BuildAction parallelizeBuildables="YES" buildImplicitDependencies="YES" buildArchitectures="Automatic">
+<Scheme
+   LastUpgradeVersion = "2700"
+   version = "1.8">
+   <BuildAction
+      parallelizeBuildables = "YES"
+      buildImplicitDependencies = "YES"
+      buildArchitectures = "Automatic">
       <BuildActionEntries>
-         <BuildActionEntry buildForTesting="YES" buildForRunning="YES" buildForProfiling="YES" buildForArchiving="YES" buildForAnalyzing="YES">
-            <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="FEC578DC3035B030008DDEFA" BuildableName="Calenda.app" BlueprintName="Calenda" ReferencedContainer="container:Calenda.xcodeproj"/>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "YES"
+            buildForProfiling = "YES"
+            buildForArchiving = "YES"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "FEC578DC3035B030008DDEFA"
+               BuildableName = "Calenda.app"
+               BlueprintName = "Calenda"
+               ReferencedContainer = "container:Calenda.xcodeproj">
+            </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
-   <TestAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.DebuggerFoundation.Launcher.LLDB" shouldUseLaunchSchemeArgsEnv="YES" shouldAutocreateTestPlan="YES">
-      <PreActions>
-         <ExecutionAction ActionTypeName="Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
-            <ActionContent title="Switch input source to ABC (prevents testmanagerd IME consent dialog)" scriptText="BIN=&quot;${PROJECT_DIR}/Tools/InputSourceSwitcher/.build/input-source-switcher&quot;&#10;if [ ! -x &quot;$BIN&quot; ]; then&#10;  mkdir -p &quot;$(dirname &quot;$BIN&quot;)&quot; &amp;&amp; xcrun swiftc -O &quot;${PROJECT_DIR}/Tools/InputSourceSwitcher/main.swift&quot; -o &quot;$BIN&quot; || exit 0&#10;fi&#10;&quot;$BIN&quot; --save &quot;${TMPDIR:-/tmp}/calenda-pre-test-input-source&quot;&#10;&quot;$BIN&quot; com.apple.keylayout.ABC&#10;">
-               <EnvironmentBuildable>
-                  <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="FEC578DC3035B030008DDEFA" BuildableName="Calenda.app" BlueprintName="Calenda" ReferencedContainer="container:Calenda.xcodeproj"/>
-               </EnvironmentBuildable>
-            </ActionContent>
-         </ExecutionAction>
-      </PreActions>
+   <TestAction
+      buildConfiguration = "Debug"
+      selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
+      selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
+      shouldUseLaunchSchemeArgsEnv = "YES"
+      shouldAutocreateTestPlan = "YES">
       <Testables>
-         <TestableReference skipped="NO" parallelizable="YES">
-            <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="FEC578E93035B033008DDEFA" BuildableName="CalendaTests.xctest" BlueprintName="CalendaTests" ReferencedContainer="container:Calenda.xcodeproj"/>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "FEC578E93035B033008DDEFA"
+               BuildableName = "CalendaTests.xctest"
+               BlueprintName = "CalendaTests"
+               ReferencedContainer = "container:Calenda.xcodeproj">
+            </BuildableReference>
          </TestableReference>
-         <TestableReference skipped="NO" parallelizable="NO">
-            <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="FEC578F33035B033008DDEFA" BuildableName="CalendaUITests.xctest" BlueprintName="CalendaUITests" ReferencedContainer="container:Calenda.xcodeproj"/>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "FEC578F33035B033008DDEFA"
+               BuildableName = "CalendaUITests.xctest"
+               BlueprintName = "CalendaUITests"
+               ReferencedContainer = "container:Calenda.xcodeproj">
+            </BuildableReference>
          </TestableReference>
       </Testables>
-      <PostActions>
-         <ExecutionAction ActionTypeName="Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
-            <ActionContent title="Restore input source" scriptText="BIN=&quot;${PROJECT_DIR}/Tools/InputSourceSwitcher/.build/input-source-switcher&quot;&#10;STATE=&quot;${TMPDIR:-/tmp}/calenda-pre-test-input-source&quot;&#10;if [ -x &quot;$BIN&quot; ] &amp;&amp; [ -f &quot;$STATE&quot; ]; then&#10;  &quot;$BIN&quot; --restore &quot;$STATE&quot;&#10;fi&#10;">
-               <EnvironmentBuildable>
-                  <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="FEC578DC3035B030008DDEFA" BuildableName="Calenda.app" BlueprintName="Calenda" ReferencedContainer="container:Calenda.xcodeproj"/>
-               </EnvironmentBuildable>
-            </ActionContent>
-         </ExecutionAction>
-      </PostActions>
    </TestAction>
-   <LaunchAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.DebuggerFoundation.Launcher.LLDB" launchStyle="0" useCustomWorkingDirectory="NO" ignoresPersistentStateOnLaunch="NO" debugDocumentVersioning="YES" debugServiceExtension="internal" allowLocationSimulation="YES">
-      <BuildableProductRunnable runnableDebuggingMode="0">
-         <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="FEC578DC3035B030008DDEFA" BuildableName="Calenda.app" BlueprintName="Calenda" ReferencedContainer="container:Calenda.xcodeproj"/>
+   <LaunchAction
+      buildConfiguration = "Debug"
+      selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
+      selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
+      launchStyle = "0"
+      useCustomWorkingDirectory = "NO"
+      ignoresPersistentStateOnLaunch = "NO"
+      debugDocumentVersioning = "YES"
+      debugServiceExtension = "internal"
+      allowLocationSimulation = "YES">
+      <BuildableProductRunnable
+         runnableDebuggingMode = "0">
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "FEC578DC3035B030008DDEFA"
+            BuildableName = "Calenda.app"
+            BlueprintName = "Calenda"
+            ReferencedContainer = "container:Calenda.xcodeproj">
+         </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
-   <ProfileAction buildConfiguration="Release" shouldUseLaunchSchemeArgsEnv="YES" savedToolIdentifier="" useCustomWorkingDirectory="NO" debugDocumentVersioning="YES">
-      <BuildableProductRunnable runnableDebuggingMode="0">
-         <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="FEC578DC3035B030008DDEFA" BuildableName="Calenda.app" BlueprintName="Calenda" ReferencedContainer="container:Calenda.xcodeproj"/>
+   <ProfileAction
+      buildConfiguration = "Release"
+      shouldUseLaunchSchemeArgsEnv = "YES"
+      savedToolIdentifier = ""
+      useCustomWorkingDirectory = "NO"
+      debugDocumentVersioning = "YES">
+      <BuildableProductRunnable
+         runnableDebuggingMode = "0">
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "FEC578DC3035B030008DDEFA"
+            BuildableName = "Calenda.app"
+            BlueprintName = "Calenda"
+            ReferencedContainer = "container:Calenda.xcodeproj">
+         </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>
-   <AnalyzeAction buildConfiguration="Debug"/>
-   <ArchiveAction buildConfiguration="Release" revealArchiveInOrganizer="YES"/>
+   <AnalyzeAction
+      buildConfiguration = "Debug">
+   </AnalyzeAction>
+   <ArchiveAction
+      buildConfiguration = "Release"
+      revealArchiveInOrganizer = "YES">
+   </ArchiveAction>
 </Scheme>

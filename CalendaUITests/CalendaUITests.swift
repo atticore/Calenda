@@ -30,6 +30,9 @@ final class CalendaUITests: XCTestCase {
         static let citySearchPlaceholder = "输入城市名搜索（至少 2 个字符）"
         static let useCurrentLocationLabel = "使用当前位置"
         static let weatherOfflineText = "网络不可用，天气暂不可用"
+        static let weatherLocationChangeLabel = "更改天气位置"
+        static let weatherLocationPickerTitle = "选择天气位置"
+        static let restoreDefaultCityLabel = "恢复默认城市"
         static let openSettingsLabel = "设置"
         static let settingsWindowTitle = "设置"
         static let todayTitleIdentifier = "calendar.detail.today-title"
@@ -535,6 +538,81 @@ final class CalendaUITests: XCTestCase {
             application.state,
             .notRunning,
             "App must stay alive after closing the settings window"
+        )
+
+        application.terminate()
+    }
+
+    /// 设置页天气位置（问题 4 回归）：位置选择直接进入搜索面板，
+    /// 默认城市状态不显示无意义的“恢复默认城市”操作。
+    @MainActor
+    func testSettingsWeatherLocationPicker() throws {
+        try throwIfSessionLocked()
+
+        let application = XCUIApplication()
+        application.launchEnvironment["CALENDA_DISABLE_NETWORK_REFRESH"] = "1"
+        application.launchEnvironment["CALENDA_UI_TEST_USE_DEFAULT_CITY"] = "1"
+        application.launch()
+        application.activate()
+
+        try openPanelByRealClick(application)
+
+        let settingsButton = application.buttons[Fixture.openSettingsLabel]
+        XCTAssertTrue(
+            settingsButton.waitForExistence(timeout: Fixture.existenceTimeout),
+            "Settings button was not exposed"
+        )
+        settingsButton.click()
+
+        let settingsWindow = application.windows[
+            Fixture.settingsWindowTitle
+        ]
+        XCTAssertTrue(
+            settingsWindow.waitForExistence(timeout: Fixture.existenceTimeout),
+            "Settings window did not appear"
+        )
+
+        let changeLocationButton = settingsWindow.buttons[
+            Fixture.weatherLocationChangeLabel
+        ]
+        XCTAssertTrue(
+            changeLocationButton.waitForExistence(
+                timeout: Fixture.existenceTimeout
+            ),
+            "Weather location change action was not exposed"
+        )
+        changeLocationButton.click()
+
+        XCTAssertTrue(
+            settingsWindow.staticTexts[
+                Fixture.weatherLocationPickerTitle
+            ].waitForExistence(timeout: Fixture.existenceTimeout),
+            "Weather location picker did not appear"
+        )
+        XCTAssertTrue(
+            settingsWindow.textFields[Fixture.citySearchPlaceholder].exists,
+            "Weather location picker did not focus the city search field"
+        )
+        XCTAssertTrue(
+            settingsWindow.buttons[Fixture.useCurrentLocationLabel].exists,
+            "Weather location picker did not expose 使用当前位置"
+        )
+        XCTAssertFalse(
+            settingsWindow.buttons[Fixture.restoreDefaultCityLabel].exists,
+            "Default city should not show 恢复默认城市"
+        )
+
+        let pickerScreenshot = XCTAttachment(
+            screenshot: XCUIScreen.main.screenshot()
+        )
+        pickerScreenshot.name = "Weather location picker"
+        pickerScreenshot.lifetime = .keepAlways
+        add(pickerScreenshot)
+
+        application.typeKey(.escape, modifierFlags: [])
+        XCTAssertTrue(
+            settingsWindow.exists,
+            "Escape should close the picker without closing settings"
         )
 
         application.terminate()

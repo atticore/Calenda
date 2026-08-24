@@ -63,7 +63,12 @@ struct MonthPickerView: View {
         HStack {
             Button(action: showPreviousYear) {
                 Image(systemName: Layout.previousYearSymbol)
+                    .frame(width: Layout.buttonHeight, height: Layout.buttonHeight)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .focusEffectDisabled()
+            .toolbarHoverEffect()
             .accessibilityLabel(AppText.previousYear)
             .help(AppText.previousYear)
 
@@ -80,7 +85,12 @@ struct MonthPickerView: View {
 
             Button(action: showNextYear) {
                 Image(systemName: Layout.nextYearSymbol)
+                    .frame(width: Layout.buttonHeight, height: Layout.buttonHeight)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .focusEffectDisabled()
+            .toolbarHoverEffect()
             .accessibilityLabel(AppText.nextYear)
             .help(AppText.nextYear)
         }
@@ -107,8 +117,11 @@ struct MonthPickerView: View {
         } label: {
             Text(date, format: .dateTime.month(.wide))
                 .frame(maxWidth: .infinity, minHeight: Layout.buttonHeight)
+                .contentShape(RoundedRectangle(cornerRadius: Layout.cornerRadius))
         }
         .buttonStyle(.plain)
+        .focusEffectDisabled()
+        .toolbarHoverEffect()
         .background(selectionBackground(isDisplayedMonth: isDisplayedMonth))
         .accessibilityAddTraits(isDisplayedMonth ? .isSelected : [])
         .accessibilityLabel(monthAccessibilityLabel(date: date, isDisplayedMonth: isDisplayedMonth))

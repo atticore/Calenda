@@ -513,6 +513,31 @@ enum AppText {
         defaultValue: "温度单位"
     )
 
+    static let settingsWeatherLocation = String(
+        localized: "settings.weather_location",
+        defaultValue: "天气位置"
+    )
+
+    static let settingsWeatherLocationChange = String(
+        localized: "settings.weather_location_change",
+        defaultValue: "更改天气位置"
+    )
+
+    static let settingsWeatherLocationPickerTitle = String(
+        localized: "settings.weather_location_picker_title",
+        defaultValue: "选择天气位置"
+    )
+
+    static let settingsWeatherLocationRecent = String(
+        localized: "settings.weather_location_recent",
+        defaultValue: "最近使用"
+    )
+
+    static let settingsWeatherLocationRestoreDefault = String(
+        localized: "settings.weather_location_restore_default",
+        defaultValue: "恢复默认城市"
+    )
+
     static let temperatureUnitCelsius = String(
         localized: "settings.unit.celsius",
         defaultValue: "摄氏度"

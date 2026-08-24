@@ -10,6 +10,13 @@ import SwiftUI
 
 @MainActor
 final class PanelController: PanelControlling {
+    private enum Presentation {
+        static let hiddenPanelAlpha: CGFloat = 0
+        static let visiblePanelAlpha: CGFloat = 1
+        static let keyWindowRetryLimit = 4
+        static let nextKeyWindowAttemptOffset = 1
+    }
+
     private enum Keyboard {
         static let leftArrowKeyCode: UInt16 = 123
         static let rightArrowKeyCode: UInt16 = 124
@@ -94,6 +101,7 @@ final class PanelController: PanelControlling {
         }
 
         outsideClickMonitor.remove()
+        panel.alphaValue = Presentation.visiblePanelAlpha
         panel.orderOut(nil)
         appModel.panelDidDisappear()
         visibility.finishHiding()
@@ -122,6 +130,7 @@ final class PanelController: PanelControlling {
         )
 
         panel.setFrame(panelFrame, display: false)
+        panel.alphaValue = Presentation.hiddenPanelAlpha
         // 点击状态项是明确的用户意图：macOS 14+ 的协作式 activate()
         // 会被系统在“前台应用持有键盘焦点”时拒绝，结果面板看得见、
         // 键盘事件却仍路由给原前台应用。activate(ignoringOtherApps:)
@@ -133,7 +142,7 @@ final class PanelController: PanelControlling {
         // 状态栏应用的面板必须显式置前，否则可能被当前活跃应用的
         // 浮层遮住，直到用户再次点击才成为最前层。
         panel.orderFrontRegardless()
-        retryMakingPanelKeyIfNeeded()
+        revealPanelWhenReady()
         outsideClickMonitor.install(
             panel: panel,
             anchorWindow: statusWindow,
@@ -157,18 +166,32 @@ final class PanelController: PanelControlling {
         visibility.finishHiding()
     }
 
-    /// 激活请求经窗口服务器异步落地：调用返回时面板可能尚未成为
-    /// key。此刻不是 key 就在下一个主线程 tick 重试一次
-    /// makeKeyAndOrderFront，保证键盘事件路由到面板；
-    /// orderFrontRegardless 已保证可见性，无需更多重试。
-    private func retryMakingPanelKeyIfNeeded() {
-        guard !panel.isKeyWindow else {
+    /// 先等待面板完成激活与 key window 切换，再让用户看到它，避免
+    /// NSGlassEffectView 先绘制未激活样式、随后切换为激活样式而闪烁。
+    private func revealPanelWhenReady(attempt: Int = .zero) {
+        guard panel.isVisible else {
             return
         }
-        Task { @MainActor [panel] in
-            if panel.isVisible, !panel.isKeyWindow {
-                panel.makeKeyAndOrderFront(nil)
+
+        if NSApp.isActive, panel.isKeyWindow {
+            panel.alphaValue = Presentation.visiblePanelAlpha
+            return
+        }
+
+        guard attempt < Presentation.keyWindowRetryLimit else {
+            panel.alphaValue = Presentation.visiblePanelAlpha
+            return
+        }
+
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            guard let self, self.panel.isVisible else {
+                return
             }
+            self.panel.makeKeyAndOrderFront(nil)
+            self.revealPanelWhenReady(
+                attempt: attempt + Presentation.nextKeyWindowAttemptOffset
+            )
         }
     }
 

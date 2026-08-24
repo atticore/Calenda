@@ -20,10 +20,12 @@ struct WeatherView: View {
         static let cityChevronFontSize: CGFloat = 8
         static let cityChevronSymbol = "chevron.down"
         static let primaryRowHeight: CGFloat = 34
-        static let secondaryRowHeight: CGFloat = 23
-        static let cityRowHeight: CGFloat = 23
+        static let secondaryRowHeight: CGFloat = 22
+        static let cityRowHeight: CGFloat = 24
         static let cityHoverCornerRadius: CGFloat = 5
         static let cityHoverOpacity = 0.08
+        static let cityHorizontalPadding: CGFloat = 6
+        static let cityVerticalPadding: CGFloat = 2
     }
 
     private let snapshot: WeatherSnapshot
@@ -124,8 +126,9 @@ struct WeatherView: View {
                         )
                         .foregroundStyle(.tertiary)
                 }
-                .padding(.horizontal, 6)
-                .frame(height: 22)
+                .padding(.horizontal, Appearance.cityHorizontalPadding)
+                .padding(.vertical, Appearance.cityVerticalPadding)
+                .frame(height: Appearance.cityRowHeight)
                 .fixedSize(horizontal: true, vertical: false)
                 .contentShape(
                     RoundedRectangle(cornerRadius: Appearance.cityHoverCornerRadius)
@@ -188,6 +191,14 @@ struct WeatherStatusView: View {
         static let primaryRowHeight: CGFloat = 34
         static let secondaryRowHeight: CGFloat = 23
         static let actionRowHeight: CGFloat = 23
+        static let actionHorizontalPadding: CGFloat = 4
+        static let actionCornerRadius: CGFloat = 4
+        static let actionHoverOpacity = 0.08
+    }
+
+    private enum ActionEntry {
+        case useCurrentLocation
+        case chooseCity
     }
 
     private let state: Loadable<WeatherSnapshot>
@@ -196,6 +207,7 @@ struct WeatherStatusView: View {
     private let isResolvingLocation: Bool
     private let cityPicker: CityPickerActions?
     @State private var isCityPickerPresented = false
+    @State private var hoveredAction: ActionEntry?
 
     init(
         state: Loadable<WeatherSnapshot>,
@@ -326,9 +338,15 @@ struct WeatherStatusView: View {
     @ViewBuilder
     private var locationHint: some View {
         if let useCurrentLocation {
-            Button(AppText.useCurrentLocation, action: useCurrentLocation)
-                .buttonStyle(.link)
-                .font(.caption)
+            Button {
+                useCurrentLocation()
+            } label: {
+                actionEntryLabel(
+                    AppText.useCurrentLocation,
+                    action: .useCurrentLocation
+                )
+            }
+            .buttonStyle(.link)
         } else {
             Text(AppText.locationDeniedHint)
                 .font(.caption2)
@@ -344,8 +362,7 @@ struct WeatherStatusView: View {
             Button {
                 isCityPickerPresented = true
             } label: {
-                Text(AppText.chooseCity)
-                    .font(.caption)
+                actionEntryLabel(AppText.chooseCity, action: .chooseCity)
             }
             .buttonStyle(.link)
             .help(AppText.chooseCity)
@@ -358,6 +375,36 @@ struct WeatherStatusView: View {
                 )
             }
         }
+    }
+
+    private func actionEntryLabel(
+        _ title: String,
+        action: ActionEntry
+    ) -> some View {
+        Text(title)
+            .font(.caption)
+            .padding(.horizontal, Layout.actionHorizontalPadding)
+            .frame(
+                minHeight: Layout.actionRowHeight,
+                alignment: .leading
+            )
+            .contentShape(
+                RoundedRectangle(cornerRadius: Layout.actionCornerRadius)
+            )
+            .background(
+                RoundedRectangle(cornerRadius: Layout.actionCornerRadius)
+                    .fill(
+                        Color.primary.opacity(
+                            hoveredAction == action
+                                ? Layout.actionHoverOpacity
+                                : .zero
+                        )
+                    )
+            )
+            .underline(hoveredAction == action)
+            .onHover { isHovering in
+                hoveredAction = isHovering ? action : nil
+            }
     }
 
     private func label(_ text: String) -> some View {

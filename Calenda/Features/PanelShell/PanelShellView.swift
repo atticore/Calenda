@@ -426,7 +426,7 @@ struct PanelShellView: View {
     }
 }
 
-private struct ToolbarHoverEffect: ViewModifier {
+struct ToolbarHoverEffect: ViewModifier {
     private enum Appearance {
         static let cornerRadius: CGFloat = 7
         static let hoverOpacity = 0.08
@@ -445,7 +445,7 @@ private struct ToolbarHoverEffect: ViewModifier {
     }
 }
 
-private extension View {
+extension View {
     func toolbarHoverEffect() -> some View {
         modifier(ToolbarHoverEffect())
     }

@@ -205,7 +205,7 @@ struct LocationAppModelTests {
     }
 
     @Test
-    func deniedLocationFailsWithoutDisturbingPreviousWeather() async throws {
+    func deniedLocationFallsBackToDefaultCity() async throws {
         let store = SettingsStore(defaults: try makeDefaults())
         let model = AppModel(
             clock: FixedTestClock(now: ISO8601DateFormatter().date(from: "2026-08-21T10:00:00Z")!),
@@ -215,7 +215,7 @@ struct LocationAppModelTests {
             locationService: StubLocating(result: .failure(UserFacingError.locationUnavailable))
         )
 
-        // 先加载默认城市天气，再切当前位置并失败：保留最后成功内容（设计 11.3/13.4）
+        // 先加载默认城市天气，再切当前位置并失败：应回退默认城市并保持可用。
         model.panelWillAppear()
         await drainUntil {
             if case .loaded = model.weatherState { return true }
@@ -223,18 +223,19 @@ struct LocationAppModelTests {
         }
         store.update { $0.activeLocation = .currentLocation }
         await drainUntil {
-            if case let .failed(previous, error) = model.weatherState {
-                return error == .locationUnavailable && previous != nil
+            if case let .loaded(snapshot, _) = model.weatherState {
+                return snapshot.location == .defaultCity
+                    && store.settings.activeLocation == .defaultCity
             }
             return false
         }
 
-        guard case let .failed(previous, error) = model.weatherState else {
-            Issue.record("期望 failed，实际：\(model.weatherState)")
+        guard case let .loaded(snapshot, _) = model.weatherState else {
+            Issue.record("期望回退后 loaded，实际：\(model.weatherState)")
             return
         }
-        #expect(error == .locationUnavailable)
-        #expect(previous?.location == .defaultCity)
+        #expect(snapshot.location == .defaultCity)
+        #expect(store.settings.activeLocation == .defaultCity)
         model.panelDidDisappear()
     }
 

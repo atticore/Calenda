@@ -25,6 +25,9 @@ enum MenuBarDateIconRenderer {
         static let dayFontSize: CGFloat = 9.5
         static let twoDigitFontSize: CGFloat = 8.5
         static let dayVerticalCenterY: CGFloat = 10.6
+        static let markRadius: CGFloat = 0.7
+        static let markColumnPositions: [CGFloat] = [5, 9, 13]
+        static let markRowPositions: [CGFloat] = [9.2, 13.1]
     }
 
     private enum Typography {
@@ -63,6 +66,7 @@ enum MenuBarDateIconRenderer {
         )
         let image = NSImage(size: iconSize, flipped: true) { canvas in
             drawCalendarPage(in: canvas)
+            drawCalendarMarks()
             return true
         }
         image.isTemplate = true
@@ -108,6 +112,21 @@ enum MenuBarDateIconRenderer {
         ringPath.lineWidth = Layout.pageLineWidth
         ringPath.lineCapStyle = .round
         ringPath.stroke()
+    }
+
+    private static func drawCalendarMarks() {
+        for verticalPosition in Layout.markRowPositions {
+            for horizontalPosition in Layout.markColumnPositions {
+                let diameter = Layout.markRadius * 2
+                let markRect = NSRect(
+                    x: horizontalPosition - Layout.markRadius,
+                    y: verticalPosition - Layout.markRadius,
+                    width: diameter,
+                    height: diameter
+                )
+                NSBezierPath(ovalIn: markRect).fill()
+            }
+        }
     }
 
     private static func drawDayNumber(
