@@ -222,18 +222,6 @@ final class AppModel {
         )
     }
 
-    var focusedGridDay: CalendarDayID? {
-        if cells.contains(where: { $0.id == selectedDay }) {
-            return selectedDay
-        }
-        if let sameDayInDisplayedMonth = cells.first(where: {
-            $0.isInDisplayedMonth && $0.id.day == selectedDay.day
-        }) {
-            return sameDayInDisplayedMonth.id
-        }
-        return cells.first(where: \.isInDisplayedMonth)?.id
-    }
-
     private func handleSystemChange() {
         calendarService = CalendarService()
         refreshFromClock()
@@ -316,10 +304,9 @@ final class AppModel {
         }
     }
 
-    /// 详情行节假日文案：锚点日（恰为节日的当天）显示具体节日名，
-    /// 连续假期中间日显示所属节日名 +“假期”后缀，孤立假期日与调休
-    /// 工作日按所属节日归属。合并公告名（如“国庆节、中秋节”）一次
-    /// 只呈现一个节日，与日格徽标的锚点口径一致。
+    /// 详情行节假日文案：锚点日、连续假期日与调休工作日始终显示
+    /// 所属的具体节日名。合并公告名（如“国庆节、中秋节”）依据节日
+    /// 锚点归一为单一名称，选择同一节日区间内的不同日期不会改变文案。
     func holidayDetailText(for day: CalendarDayID) -> String? {
         guard let mark = holidayMark(for: day) else {
             return nil
@@ -327,17 +314,8 @@ final class AppModel {
         let status = mark.isOffDay
             ? AppText.holidayOffBadge
             : AppText.holidayWorkBadge
-        let name: String
-        if let festivalName = statutoryFestivalName(for: day) {
-            name = festivalName
-        } else {
-            let festivalName = singleFestivalName(for: day, mark: mark)
-            if mark.isOffDay, isInContinuousOffDayBlock(day, name: mark.name) {
-                name = AppText.holidayVacationBlockName(festivalName)
-            } else {
-                name = festivalName
-            }
-        }
+        let name = statutoryFestivalName(for: day)
+            ?? singleFestivalName(for: day, mark: mark)
         return AppText.holidayDetailLine(name, status)
     }
 
@@ -416,25 +394,6 @@ final class AppModel {
                 to: rhsDate
             ).day ?? .max
         )
-    }
-
-    /// 相邻同名休息日记录：当天处于连续假期块中（非孤立单日）。
-    /// holidayMarksByDay 覆盖当前 42 格窗口，块边界落在窗口外时
-    /// 最多退化为孤立口径，不影响正确性。
-    private func isInContinuousOffDayBlock(
-        _ day: CalendarDayID,
-        name: String
-    ) -> Bool {
-        let neighbors = [
-            calendarService.day(byAdding: -1, to: day),
-            calendarService.day(byAdding: 1, to: day),
-        ].compactMap { $0 }
-        return neighbors.contains { neighbor in
-            guard let mark = holidayMarksByDay[neighbor] else {
-                return false
-            }
-            return mark.name == name && mark.isOffDay
-        }
     }
 
     /// 月份切换先准备公历、农历和节假日快照，再在同一轮观察更新中提交。

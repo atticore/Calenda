@@ -329,20 +329,6 @@ enum AppText {
         )
     }
 
-    private static let holidayVacationBlockNameFormat = String(
-        localized: "holiday.vacation_block_name",
-        defaultValue: "%1$@假期"
-    )
-
-    /// 连续假期中间日的详情行块名（公告口径），如“国庆节、中秋节假期”。
-    static func holidayVacationBlockName(_ name: String) -> String {
-        String(
-            format: holidayVacationBlockNameFormat,
-            locale: .current,
-            name
-        )
-    }
-
     private static let dayAccessibilityLabelWithStatusFormat = String(
         localized: "calendar.day.accessibility_label_with_status",
         defaultValue: "%1$@，%2$@"

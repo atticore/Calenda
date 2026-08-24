@@ -20,7 +20,8 @@ struct PanelShellView: View {
         static let headerHeight: CGFloat = 44
         static let headerHorizontalPadding: CGFloat = 18
         static let detailHorizontalPadding: CGFloat = 14
-        static let detailVerticalPadding: CGFloat = 8
+        static let detailTopPadding: CGFloat = .zero
+        static let detailBottomPadding: CGFloat = 16
         static let dateNumberFontSize: CGFloat = 50
         static let daySuffixFontSize: CGFloat = 19
         static let headerDividerOpacity = 0.08
@@ -225,7 +226,8 @@ struct PanelShellView: View {
             todaySummary
         }
         .padding(.horizontal, Presentation.detailHorizontalPadding)
-        .padding(.vertical, Presentation.detailVerticalPadding)
+        .padding(.top, Presentation.detailTopPadding)
+        .padding(.bottom, Presentation.detailBottomPadding)
         .frame(width: PanelConfiguration.detailColumnWidth)
         .frame(maxHeight: .infinity, alignment: .topLeading)
     }

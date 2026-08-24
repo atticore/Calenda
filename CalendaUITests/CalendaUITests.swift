@@ -25,8 +25,7 @@ final class CalendaUITests: XCTestCase {
         static let coldDewSolarTermLabel = "寒露"
         static let combinedHolidayLabel = "国庆节、中秋节"
         static let nationalDayOffDetail = "国庆节 · 休"
-        static let nationalDayVacationDetail = "国庆节假期 · 休"
-        static let midAutumnVacationDetail = "中秋节假期 · 休"
+        static let midAutumnOffDetail = "中秋节 · 休"
         static let chooseCityLabel = "选择城市"
         static let citySearchPlaceholder = "输入城市名搜索（至少 2 个字符）"
         static let useCurrentLocationLabel = "使用当前位置"
@@ -34,6 +33,9 @@ final class CalendaUITests: XCTestCase {
         static let openSettingsLabel = "设置"
         static let settingsWindowTitle = "设置"
         static let todayTitleIdentifier = "calendar.detail.today-title"
+        static let monthSwitchScreenshotName =
+            "Stable month switch focus presentation"
+        static let screenNumberOffset = 1
     }
 
     override class func setUp() {
@@ -152,7 +154,7 @@ final class CalendaUITests: XCTestCase {
     /// 连续假期的逐日命名（问题 2 回归）：2025 年国庆中秋合并块里，
     /// 日格徽标只在锚点日显示具体节日名（10/1 国庆节、10/6 中秋节），
     /// 中间日不显示公告合并名，节气（10/8 寒露）不被压掉；详情行
-    /// 锚点日显示具体名、中间日显示块名。
+    /// 锚点日与所属的连续假期日显示相同的具体节日名。
     @MainActor
     func testCombinedHolidayNamesOnlyAnchorsInDayCells() throws {
         try throwIfSessionLocked()
@@ -239,7 +241,7 @@ final class CalendaUITests: XCTestCase {
             ),
             "10/8 cell should carry the 寒露 solar term"
         )
-        // 公告合并名不得出现在日格徽标（详情行允许“…假期”块名）
+        // 公告合并名不得出现在日格徽标或详情行
         XCTAssertFalse(
             application.buttons.matching(
                 NSPredicate(
@@ -263,12 +265,12 @@ final class CalendaUITests: XCTestCase {
             accuracy: 0.5,
             "Selected-date holiday content must not move the today section"
         )
-        // 中间日一次只归属一个节日：不晚于当天最近的锚点 + 假期 + 休
+        // 中间日一次只归属一个节日，名称与所属锚点日一致
         anchorCell(application, dayText: "10 月 3 日").click()
         XCTAssertTrue(
-            application.staticTexts[Fixture.nationalDayVacationDetail]
+            application.staticTexts[Fixture.nationalDayOffDetail]
                 .waitForExistence(timeout: Fixture.existenceTimeout),
-            "10/3 detail line should read 国庆节假期 · 休"
+            "10/3 detail line should read 国庆节 · 休"
         )
         XCTAssertEqual(
             todayTitle.frame.minY,
@@ -276,12 +278,24 @@ final class CalendaUITests: XCTestCase {
             accuracy: 0.5,
             "Changing selected-date detail must not move the today section"
         )
-        // 中秋锚点之后的中间日归属中秋节
+        // 中秋锚点日与之后的连续假期日使用相同名称
+        anchorCell(application, dayText: "10 月 6 日").click()
+        XCTAssertTrue(
+            application.staticTexts[Fixture.midAutumnOffDetail]
+                .waitForExistence(timeout: Fixture.existenceTimeout),
+            "10/6 detail line should read 中秋节 · 休"
+        )
+        XCTAssertEqual(
+            todayTitle.frame.minY,
+            todayTitleMinY,
+            accuracy: 0.5,
+            "Mid-Autumn anchor must preserve the today section"
+        )
         anchorCell(application, dayText: "10 月 7 日").click()
         XCTAssertTrue(
-            application.staticTexts[Fixture.midAutumnVacationDetail]
+            application.staticTexts[Fixture.midAutumnOffDetail]
                 .waitForExistence(timeout: Fixture.existenceTimeout),
-            "10/7 detail line should read 中秋节假期 · 休"
+            "10/7 detail line should read 中秋节 · 休"
         )
         XCTAssertEqual(
             todayTitle.frame.minY,
@@ -343,6 +357,10 @@ final class CalendaUITests: XCTestCase {
         octoberButton.click()
 
         let septemberFirstFragment = "9 月 1 日"
+        let septemberTwentyNinthCell = anchorCell(
+            application,
+            dayText: "9 月 29 日"
+        )
         XCTAssertFalse(
             application.buttons.matching(
                 NSPredicate(format: "label CONTAINS %@", septemberFirstFragment)
@@ -351,7 +369,7 @@ final class CalendaUITests: XCTestCase {
         )
 
         // 点击前导格 9 月 29 日（相邻月日期）
-        anchorCell(application, dayText: "9 月 29 日").click()
+        septemberTwentyNinthCell.click()
 
         // 九月网格就位（9 月 1 日为周一，属九月网格首格）
         XCTAssertTrue(
@@ -374,6 +392,18 @@ final class CalendaUITests: XCTestCase {
             selectedCell.label.contains(septemberLunarBadge),
             "Selected cell label should carry the lunar badge \(septemberLunarBadge), got: \(selectedCell.label)"
         )
+
+        // 再次点击已选日期不得叠加系统焦点框；选中背景是唯一的
+        // 视觉状态，随后截图同时覆盖日期格与右侧城市入口。
+        selectedCell.click()
+
+        for (index, screen) in XCUIScreen.screens.enumerated() {
+            let screenshot = XCTAttachment(screenshot: screen.screenshot())
+            screenshot.name = "\(Fixture.monthSwitchScreenshotName) "
+                + "\(index + Fixture.screenNumberOffset)"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+        }
 
         application.terminate()
     }

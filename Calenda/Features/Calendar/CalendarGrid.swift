@@ -22,9 +22,10 @@ struct CalendarGrid: View {
 
     private let model: AppModel
     @Namespace private var selectionNamespace
-    /// 键盘焦点跟随选中日期（AppModel.focusedGridDay 的展示接线）：
-    /// 面板成为 key 后焦点环落在当前格，Space/Enter 可激活选中。
-    @FocusState private var focusedDay: CalendarDayID?
+    /// 日期按钮会随月份整体替换，不能作为持久焦点目标，否则系统会在
+    /// 旧按钮移除时把焦点短暂迁移到相邻日期或右侧城市按钮。网格本身
+    /// 是唯一且稳定的焦点目标；当前键盘位置由选中背景表达。
+    @FocusState private var isGridFocused: Bool
 
     init(model: AppModel) {
         self.model = model
@@ -38,18 +39,15 @@ struct CalendarGrid: View {
         .padding(.horizontal, Layout.horizontalPadding)
         .padding(.vertical, Layout.verticalPadding)
         .frame(maxHeight: .infinity, alignment: .top)
-        .onAppear { focusedDay = model.focusedGridDay }
+        .focusable()
+        .focused($isGridFocused)
+        .focusEffectDisabled()
+        .onAppear { focusGridIfVisible() }
         .onChange(of: model.selectedDay) { _, _ in
-            focusedDay = model.focusedGridDay
-        }
-        // 月份切换后选中日可能不在新网格内，焦点回落到同日格
-        .onChange(of: model.cells) { _, _ in
-            focusedDay = model.focusedGridDay
+            focusGridIfVisible()
         }
         .onChange(of: model.isPanelVisible) { _, isVisible in
-            if isVisible {
-                focusedDay = model.focusedGridDay
-            }
+            isGridFocused = isVisible
         }
     }
 
@@ -63,10 +61,21 @@ struct CalendarGrid: View {
                     holidayMark: model.holidayMark(for: cell.id),
                     isWeekend: weekdays[index % Layout.columnCount].isWeekend,
                     selectionNamespace: selectionNamespace,
-                    action: { model.select(cell.id) }
+                    action: {
+                        isGridFocused = true
+                        model.select(cell.id)
+                    }
                 )
-                .focused($focusedDay, equals: cell.id)
+                // VoiceOver 仍可逐格操作；这里只排除会参与系统键盘焦点
+                // 迁移的 AppKit/SwiftUI focus chain。
+                .focusable(false)
             }
+        }
+    }
+
+    private func focusGridIfVisible() {
+        if model.isPanelVisible {
+            isGridFocused = true
         }
     }
 

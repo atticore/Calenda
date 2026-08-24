@@ -1,0 +1,30 @@
+{
+  "object" : {
+    "artifacts" : [
+
+    ],
+    "dependencies" : [
+      {
+        "basedOn" : null,
+        "packageRef" : {
+          "identity" : "tyme4swift",
+          "kind" : "remoteSourceControl",
+          "location" : "https://github.com/6tail/tyme4swift",
+          "name" : "tyme4swift"
+        },
+        "state" : {
+          "checkoutState" : {
+            "revision" : "97f6ab433571a3fc7221f07b0857b71dd819316a",
+            "version" : "1.5.0"
+          },
+          "name" : "sourceControlCheckout"
+        },
+        "subpath" : "tyme4swift"
+      }
+    ],
+    "prebuilts" : [
+
+    ]
+  },
+  "version" : 7
+}
