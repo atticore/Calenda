@@ -40,6 +40,9 @@ Calenda 是菜单栏应用（LSUIElement）：启动后不出现在 Dock，只�
 | Esc 或点击面板外 | 关闭面板 |
 | 右键点击菜单栏图标 | 打开“设置 / 退出”菜单 |
 
+## 界面预览
+![Calenda 月历面板截图](docs/assets/calenda-screenshot-transparent.png)
+
 ## 设置
 
 设置窗口为单实例原生窗口，包含五个分区：
@@ -91,7 +94,7 @@ Calenda/
 └── Resources/              # 内置节假日快照、本地化字符串
 CalendaTests/               # 单元测试
 CalendaUITests/             # UI 测试
-Tools/InputSourceSwitcher/  # UI 测试前切换系统输入法的辅助工具
+scripts/input-source-switcher/  # UI 测试前切换系统输入法的辅助工具
 ```
 
 ## 构建与测试
