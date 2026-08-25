@@ -34,6 +34,12 @@ final class PanelController: PanelControlling {
         static let monthsPerYear = 12
         static let previousYearOffset = -monthsPerYear
         static let nextYearOffset = monthsPerYear
+        static let navigationModifierFlags: NSEvent.ModifierFlags = [
+            .command,
+            .option,
+            .control,
+            .shift,
+        ]
     }
 
     private enum CalendarKeyboardCommand {
@@ -51,6 +57,7 @@ final class PanelController: PanelControlling {
     private weak var shellActions: (any ShellActions)?
     private let outsideClickMonitor = OutsideClickMonitor()
     private var visibility = PanelVisibilityStateMachine()
+    private var activationPolicyBeforePanel: NSApplication.ActivationPolicy?
 
     init(
         positioner: any PanelPositioning = PanelPositioner(),
@@ -82,6 +89,9 @@ final class PanelController: PanelControlling {
             )
         )
         panel = CalendarPanel(hostedContentView: hostingView)
+        panel.keyDownHandler = { [weak self] event in
+            self?.handleCalendarKeyDown(event) ?? false
+        }
     }
 
     func togglePanel(relativeTo statusButton: NSStatusBarButton) {
@@ -105,6 +115,7 @@ final class PanelController: PanelControlling {
         panel.orderOut(nil)
         appModel.panelDidDisappear()
         visibility.finishHiding()
+        restoreActivationPolicy()
     }
 
     private func showPanel(relativeTo statusButton: NSStatusBarButton) {
@@ -131,12 +142,13 @@ final class PanelController: PanelControlling {
 
         panel.setFrame(panelFrame, display: false)
         panel.alphaValue = Presentation.hiddenPanelAlpha
-        // 点击状态项是明确的用户意图：macOS 14+ 的协作式 activate()
-        // 会被系统在“前台应用持有键盘焦点”时拒绝，结果面板看得见、
-        // 键盘事件却仍路由给原前台应用。activate(ignoringOtherApps:)
-        // 的弃用理由是阻止*无用户交互*时抢焦点；用户主动点击正是
-        // 该 API 仍然可靠的老场景（成熟菜单栏应用的通行做法），
-        // 这里有意选用并接受弃用诊断。
+        // accessory 应用有时能显示面板，却不能可靠成为键窗口，
+        // 键盘事件会继续路由给原前台应用。临时切到 regular，
+        // 沿用设置窗口已验证的激活路径；关闭面板后恢复 accessory。
+        activationPolicyBeforePanel = NSApp.activationPolicy()
+        if activationPolicyBeforePanel == .accessory {
+            NSApp.setActivationPolicy(.regular)
+        }
         NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
         // 状态栏应用的面板必须显式置前，否则可能被当前活跃应用的
@@ -164,6 +176,17 @@ final class PanelController: PanelControlling {
             return
         }
         visibility.finishHiding()
+    }
+
+    private func restoreActivationPolicy() {
+        guard let previousPolicy = activationPolicyBeforePanel else {
+            return
+        }
+        activationPolicyBeforePanel = nil
+        guard NSApp.activationPolicy() != previousPolicy else {
+            return
+        }
+        NSApp.setActivationPolicy(previousPolicy)
     }
 
     /// 先等待面板完成激活与 key window 切换，再让用户看到它，避免
@@ -218,7 +241,11 @@ final class PanelController: PanelControlling {
     private func calendarKeyboardCommand(
         for event: NSEvent
     ) -> CalendarKeyboardCommand? {
-        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        // 方向键在部分键盘/事件来源下会附带 numericPad 或 function 标志；
+        // 这些不是本应用的导航修饰键，不能让普通方向键匹配失败。
+        let modifiers = event.modifierFlags.intersection(
+            Keyboard.navigationModifierFlags
+        )
         if modifiers == .command,
            let character = event.charactersIgnoringModifiers?.lowercased() {
             switch character {

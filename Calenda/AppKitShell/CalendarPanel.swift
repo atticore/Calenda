@@ -9,12 +9,21 @@ import AppKit
 
 @MainActor
 final class CalendarPanel: NSPanel {
+    var keyDownHandler: (@MainActor (NSEvent) -> Bool)?
+
     override var canBecomeKey: Bool {
         true
     }
 
     override var canBecomeMain: Bool {
         false
+    }
+
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .keyDown, keyDownHandler?(event) == true {
+            return
+        }
+        super.sendEvent(event)
     }
 
     init(hostedContentView: NSView) {
