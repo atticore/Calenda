@@ -115,6 +115,11 @@ final class PanelController: PanelControlling {
         panel.orderOut(nil)
         appModel.panelDidDisappear()
         visibility.finishHiding()
+        // 打开设置是从面板到普通窗口的连续交接；保持 regular，避免
+        // accessory → regular 的连续切换让设置窗口在窗口服务器中落后。
+        if case .settings = reason {
+            return
+        }
         restoreActivationPolicy()
     }
 

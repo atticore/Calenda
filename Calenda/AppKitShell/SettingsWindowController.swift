@@ -80,6 +80,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         // activate(ignoringOtherApps:) 仍然可靠的用户交互场景。
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
         guard wasAccessory else {
             return
         }
@@ -95,6 +96,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         }
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
     }
 
     private func makeWindow() -> NSWindow {
