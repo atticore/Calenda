@@ -17,3 +17,6 @@ DerivedData/
 
 # macOS
 .DS_Store
+
+# Private open-source provenance notes (never publish)
+docs/private/

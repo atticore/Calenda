@@ -399,7 +399,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSUIElement = YES;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 atticore. Released under the MIT License.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "仅用于查询本地天气";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -431,7 +431,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSUIElement = YES;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 atticore. Released under the MIT License.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "仅用于查询本地天气";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

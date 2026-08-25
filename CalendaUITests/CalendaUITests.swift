@@ -36,6 +36,7 @@ final class CalendaUITests: XCTestCase {
         static let openSettingsLabel = "设置"
         static let settingsWindowTitle = "设置"
         static let todayTitleIdentifier = "calendar.detail.today-title"
+        static let selectedDateLabel = "所选日期"
         static let monthSwitchScreenshotName =
             "Stable month switch focus presentation"
         static let screenNumberOffset = 1
@@ -151,6 +152,84 @@ final class CalendaUITests: XCTestCase {
         XCTAssertTrue(
             waitForPanel(visible: false, timeout: Fixture.existenceTimeout),
             "Calendar panel did not close after Escape"
+        )
+    }
+
+    /// 方向键导航：左右移动一天、上下移动一周，往返断言所选日期
+    /// 无障碍标签随之变化并回到原值。与 Escape 用例同一条本地
+    /// 监视器链路，环境限制（锁屏、Secure Input、AX 不可见）同样跳过。
+    @MainActor
+    func testArrowKeysMoveSelectedDay() throws {
+        try throwIfSessionLocked()
+        try throwIfSecureInputHeld()
+
+        let application = XCUIApplication()
+        application.launchEnvironment["CALENDA_DISABLE_NETWORK_REFRESH"] = "1"
+        application.launch()
+        application.activate()
+
+        try openPanelByRealClick(application)
+
+        XCTAssertTrue(
+            waitForPanel(visible: true, timeout: Fixture.existenceTimeout),
+            "Calendar panel did not appear"
+        )
+
+        if !panelVisibleToAccessibility(application) {
+            application.terminate()
+            throw XCTSkip(
+                "Panel window is not visible to accessibility (off-main space); "
+                    + "synthesized keys cannot be delivered"
+            )
+        }
+
+        let selectedDate = application.descendants(matching: .any)
+            .matching(
+                NSPredicate(format: "label BEGINSWITH %@", Fixture.selectedDateLabel)
+            )
+            .firstMatch
+        XCTAssertTrue(
+            selectedDate.waitForExistence(timeout: Fixture.existenceTimeout),
+            "Selected date element is not exposed"
+        )
+        let initialLabel = selectedDate.label
+
+        // → 所选日期变化；← 回到原值
+        application.typeKey(.rightArrow, modifierFlags: [])
+        XCTAssertTrue(
+            waitForSelectedDateLabel(
+                toDifferFrom: initialLabel,
+                on: selectedDate
+            ),
+            "Right arrow did not move the selected day"
+        )
+
+        application.typeKey(.leftArrow, modifierFlags: [])
+        XCTAssertTrue(
+            waitForSelectedDateLabel(
+                toEqual: initialLabel,
+                on: selectedDate
+            ),
+            "Left arrow did not restore the selected day"
+        )
+
+        // ↓ 所选日期变化；↑ 回到原值
+        application.typeKey(.downArrow, modifierFlags: [])
+        XCTAssertTrue(
+            waitForSelectedDateLabel(
+                toDifferFrom: initialLabel,
+                on: selectedDate
+            ),
+            "Down arrow did not move the selected day by a week"
+        )
+
+        application.typeKey(.upArrow, modifierFlags: [])
+        XCTAssertTrue(
+            waitForSelectedDateLabel(
+                toEqual: initialLabel,
+                on: selectedDate
+            ),
+            "Up arrow did not restore the selected day"
         )
     }
 
@@ -663,6 +742,38 @@ final class CalendaUITests: XCTestCase {
         application.windows.matching(
             NSPredicate(format: "title == %@", Fixture.accessibilityLabel)
         ).firstMatch.exists
+    }
+
+    // MARK: - 所选日期标签轮询
+
+    /// typeKey 合成事件送达与 SwiftUI 重渲染之间存在延迟，标签断言
+    /// 需要轮询而不是即时比较。
+    @MainActor
+    private func waitForSelectedDateLabel(
+        toEqual expected: String,
+        on element: XCUIElement,
+        timeout: TimeInterval = Fixture.existenceTimeout
+    ) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if element.label == expected { return true }
+            Thread.sleep(forTimeInterval: Fixture.pollInterval)
+        }
+        return element.label == expected
+    }
+
+    @MainActor
+    private func waitForSelectedDateLabel(
+        toDifferFrom original: String,
+        on element: XCUIElement,
+        timeout: TimeInterval = Fixture.existenceTimeout
+    ) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if element.label != original { return true }
+            Thread.sleep(forTimeInterval: Fixture.pollInterval)
+        }
+        return element.label != original
     }
 
     // MARK: - 环境守卫
