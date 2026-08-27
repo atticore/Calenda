@@ -51,8 +51,14 @@ final class OutsideClickMonitor {
             matching: [.leftMouseDown, .rightMouseDown]
         ) { [weak self] event in
             let eventWindowID = event.window.map(ObjectIdentifier.init)
+            // 监视器闭包同步于事件出队时刻执行，此时的
+            // mouseLocation 即本次点击的屏幕坐标。
+            let screenLocation = NSEvent.mouseLocation
             Task { @MainActor [weak self] in
-                self?.handleLocalMouseEvent(windowID: eventWindowID)
+                self?.handleLocalMouseEvent(
+                    windowID: eventWindowID,
+                    screenLocation: screenLocation
+                )
             }
             return event
         }
@@ -109,17 +115,55 @@ final class OutsideClickMonitor {
         closeHandler?(reason)
     }
 
-    private func handleLocalMouseEvent(windowID: ObjectIdentifier?) {
+    // MARK: - 菜单栏条带判定
+
+    /// 判断屏幕坐标点是否落在任一屏幕的菜单栏条带内（屏幕上沿至
+    /// visibleFrame 顶；Dock 不支持置顶，主屏该条带即菜单栏；副屏
+    /// 无菜单栏，visibleFrame 与 frame 齐平，天然不会命中）。
+    /// 上下文菜单出现在状态项下方、低于条带，也不会被误判。
+    nonisolated static func isLocationInMenuBarStrip(
+        _ location: NSPoint,
+        screens: [(frame: CGRect, visibleFrame: CGRect)]
+    ) -> Bool {
+        screens.contains { screen in
+            guard screen.frame.contains(location) else {
+                return false
+            }
+            return location.y >= screen.visibleFrame.maxY
+        }
+    }
+
+    private func handleLocalMouseEvent(
+        windowID: ObjectIdentifier?,
+        screenLocation: NSPoint
+    ) {
         guard
             let panel,
-            panel.isVisible,
-            let eventWindowID = windowID
+            panel.isVisible
         else {
             return
         }
 
+        guard let eventWindowID = windowID else {
+            // 面板打开期间本应用为活跃应用：菜单栏空白处与菜单标题
+            // 的点击不关联任何 NSWindow（window == nil），只会进入
+            // 本地监听；落在菜单栏条带内的点击与桌面点击同义，需要
+            // 关闭面板。上下文菜单出现在状态项下方、低于条带，不会
+            // 被误伤。
+            if Self.isLocationInMenuBarStrip(
+                screenLocation,
+                screens: NSScreen.screens.map {
+                    (frame: $0.frame, visibleFrame: $0.visibleFrame)
+                }
+            ) {
+                requestClose(reason: .outsideClick)
+            }
+            return
+        }
+
         // 状态项所在窗口的点击由其自身 action 分流（toggle 关闭）；
-        // 若此处抢先关闭，随后的 mouseUp action 会把面板重新打开。
+        // 若此处抢先关闭，随后状态项按下的 action 会经 toggle 把
+        // 面板重新打开。
         if eventWindowID == ObjectIdentifier(panel) {
             return
         }

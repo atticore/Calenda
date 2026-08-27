@@ -22,6 +22,9 @@ final class StatusItemController {
     private let statusItem: NSStatusItem
     private var titleFormatter: MenuBarDateTitleFormatter
     private var midnightTimer: Timer?
+    /// block 观察的移除凭证，按注册中心成对保存（deinit 逐一注销）。
+    private var systemChangeObservers:
+        [(center: NotificationCenter, token: NSObjectProtocol)] = []
 
     init(
         panelController: any PanelControlling,
@@ -45,8 +48,9 @@ final class StatusItemController {
     }
 
     isolated deinit {
-        NotificationCenter.default.removeObserver(self)
-        NSWorkspace.shared.notificationCenter.removeObserver(self)
+        for observer in systemChangeObservers {
+            observer.center.removeObserver(observer.token)
+        }
         midnightTimer?.invalidate()
         statusBar.removeStatusItem(statusItem)
     }
@@ -66,47 +70,52 @@ final class StatusItemController {
         button.setAccessibilityLabel(AppText.menuBarAccessibilityLabel)
         button.target = self
         button.action = #selector(handleStatusItemClick)
-        // 左键切换面板；右键弹出上下文菜单（设计 5.3）
-        button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        // 左键按下即开面板、右键按下即弹菜单：菜单栏原生控件按
+        // mouseDown 响应，消除"抬起后才出现"的迟滞。
+        button.sendAction(on: [.leftMouseDown, .rightMouseDown])
     }
 
+    /// 系统/设置通知可能在任意线程投递（午夜跨天通知由系统在后台
+    /// dispatch 线程发出）。selector 观察会在发帖线程直接调用
+    /// @MainActor 方法，触发 Swift 运行时 executor 检查崩溃；
+    /// 这里与 AppModel.registerForSystemChanges 一致，统一经
+    /// `queue: .main` 收敛到主队列，再跳转 MainActor 后触碰状态。
     private func registerForSystemChanges() {
-        let notificationCenter = NotificationCenter.default
-        notificationCenter.addObserver(
-            self,
-            selector: #selector(handleSystemDateChange),
-            name: .NSCalendarDayChanged,
-            object: nil
-        )
-        notificationCenter.addObserver(
-            self,
-            selector: #selector(handleSystemDateChange),
-            name: .NSSystemTimeZoneDidChange,
-            object: nil
-        )
-        notificationCenter.addObserver(
-            self,
-            selector: #selector(handleSystemDateChange),
-            name: NSLocale.currentLocaleDidChangeNotification,
-            object: nil
-        )
-        notificationCenter.addObserver(
-            self,
-            selector: #selector(handleSettingsChange),
-            name: .appSettingsDidChange,
-            object: nil
-        )
-        NSWorkspace.shared.notificationCenter.addObserver(
-            self,
-            selector: #selector(handleSystemDateChange),
-            name: NSWorkspace.didWakeNotification,
-            object: nil
-        )
+        systemChangeObservers = [
+            observe(.NSCalendarDayChanged) { $0.refreshDateTitle() },
+            observe(.NSSystemTimeZoneDidChange) { $0.refreshDateTitle() },
+            observe(NSLocale.currentLocaleDidChangeNotification) { $0.refreshDateTitle() },
+            observe(.appSettingsDidChange) { $0.refresh() },
+            observe(
+                NSWorkspace.didWakeNotification,
+                in: NSWorkspace.shared.notificationCenter
+            ) { $0.refreshDateTitle() },
+        ]
+    }
+
+    private func observe(
+        _ name: Notification.Name,
+        in center: NotificationCenter = .default,
+        action: @escaping @MainActor (StatusItemController) -> Void
+    ) -> (center: NotificationCenter, token: NSObjectProtocol) {
+        let token = center.addObserver(
+            forName: name,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else {
+                    return
+                }
+                action(self)
+            }
+        }
+        return (center, token)
     }
 
     @objc
     private func handleStatusItemClick(_ sender: NSStatusBarButton) {
-        if NSApp.currentEvent?.type == .rightMouseUp {
+        if NSApp.currentEvent?.type == .rightMouseDown {
             showContextMenu(for: sender)
         } else {
             panelController?.togglePanel(relativeTo: sender)
@@ -169,17 +178,6 @@ final class StatusItemController {
     @objc
     private func quitFromMenu() {
         shellActions?.quit()
-    }
-
-    @objc
-    private func handleSystemDateChange(_ notification: Notification) {
-        titleFormatter = MenuBarDateTitleFormatter(calendar: .autoupdatingCurrent)
-        refresh()
-    }
-
-    @objc
-    private func handleSettingsChange(_ notification: Notification) {
-        refresh()
     }
 
     private func refreshDateTitle() {

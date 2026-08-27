@@ -120,6 +120,64 @@ final class CalendaUITests: XCTestCase {
         )
     }
 
+    /// 按下即开 + 菜单栏空白关闭（交互细化）：
+    /// 1. 状态项在 mouseDown 按住期间（未抬起）面板即出现；
+    /// 2. 面板打开时点击主屏菜单栏空白条带应关闭面板。
+    @MainActor
+    func testPressOpensPanelAndMenuBarBlankClickCloses() throws {
+        try throwIfSessionLocked()
+
+        let application = XCUIApplication()
+        application.launchEnvironment["CALENDA_DISABLE_NETWORK_REFRESH"] = "1"
+        application.launch()
+        application.activate()
+
+        let item = try hittableStatusItem(on: application)
+
+        // 1. 按住状态项 3 秒不抬起；后台观察线程只在前 2.2 秒轮询，
+        //    足以区分"按下即开"与"抬起才开"（抬起发生在 3 秒末）。
+        let probe = PanelOpenProbe()
+        let poller = Thread(block: { [weak self] in
+            let stopAt = Date().addingTimeInterval(2.2)
+            while Date() < stopAt {
+                if self?.panelWindowExists() == true {
+                    probe.markOpen()
+                    break
+                }
+                Thread.sleep(forTimeInterval: 0.1)
+            }
+        })
+        poller.start()
+        item.press(forDuration: 3)
+
+        XCTAssertTrue(
+            probe.isOpen,
+            "面板应在状态项按下期间（未抬起）即打开"
+        )
+        XCTAssertTrue(
+            waitForPanel(visible: true, timeout: Fixture.existenceTimeout),
+            "抬起鼠标后面板应保持打开"
+        )
+
+        // 2. 点击主屏菜单栏中段空白（避开左侧应用菜单、中央刘海与
+        //    右侧系统状态项；该点不关联任何 NSWindow，只能经本地
+        //    监听的菜单栏条带判定关闭）。XCUIScreen 无坐标构造器，
+        //    以状态项中心为基准水平偏移到屏幕宽度 45% 处：x 轴在
+        //    两种坐标系下方向一致，状态项纵向中心必在菜单栏内。
+        let screenWidth = NSScreen.main?.frame.width ?? item.frame.maxX
+        let horizontalShift = screenWidth * 0.45 - item.frame.midX
+        item.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .withOffset(CGVector(dx: horizontalShift, dy: 0))
+            .click()
+
+        XCTAssertTrue(
+            waitForPanel(visible: false, timeout: Fixture.existenceTimeout),
+            "点击菜单栏空白处应关闭面板"
+        )
+
+        application.terminate()
+    }
+
     /// 键盘关闭路径：Escape 经应用内本地监视器关闭面板（设计 5.3）。
     /// 依赖合成键盘事件可送达：锁屏、Secure Input 持有、面板位于
     /// AX 不可见 Space（副屏独立空间）时按环境限制跳过。
@@ -699,6 +757,37 @@ final class CalendaUITests: XCTestCase {
 
     // MARK: - 共用打开路径
 
+    /// 可命中的状态项实例；找不到（副屏在主屏上方、菜单栏拥挤溢出
+    /// 等环境）时终止应用并跳过——真实指针交互无法替代。
+    @MainActor
+    private func hittableStatusItem(
+        on application: XCUIApplication
+    ) throws -> XCUIElement {
+        let items = application.statusItems.matching(
+            NSPredicate(format: "label == %@", Fixture.accessibilityLabel)
+        )
+        XCTAssertTrue(
+            items.firstMatch.waitForExistence(timeout: Fixture.existenceTimeout),
+            "Calenda status item did not appear"
+        )
+
+        let deadline = Date().addingTimeInterval(Fixture.hittablePollTimeout)
+        var statusItem = items.allElementsBoundByIndex.first { $0.isHittable }
+        while statusItem == nil && Date() < deadline {
+            Thread.sleep(forTimeInterval: Fixture.pollInterval)
+            statusItem = items.allElementsBoundByIndex.first { $0.isHittable }
+        }
+
+        guard let statusItem else {
+            application.terminate()
+            throw XCTSkip(
+                "Status item is not hittable (secondary display above primary "
+                    + "or menu bar overflow); pointer interaction cannot run"
+            )
+        }
+        return statusItem
+    }
+
     /// 点击可命中的状态项实例打开面板；无可命中实例（副屏在主屏
     /// 上方、菜单栏拥挤溢出等环境）时跳过——toggle 与键盘用例都
     /// 必须以真实点击驱动，注入路径无法复现同一交互前置条件。
@@ -861,5 +950,20 @@ final class CalendaUITests: XCTestCase {
             Thread.sleep(forTimeInterval: Fixture.pollInterval)
         }
         return panelWindowExists() == expected
+    }
+}
+
+/// 后台轮询线程与测试主线程之间的"面板已出现"标记。
+/// `@unchecked Sendable` 的不变量：open 仅经 NSLock 访问。
+private final class PanelOpenProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var open = false
+
+    var isOpen: Bool {
+        lock.withLock { open }
+    }
+
+    func markOpen() {
+        lock.withLock { open = true }
     }
 }
