@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct CalendarDayCell: View {
+struct CalendarDayCell: View, Equatable {
     private enum Appearance {
         static let cellHeight: CGFloat = 48
         static let cornerRadius: CGFloat = 10
@@ -174,6 +174,16 @@ struct CalendarDayCell: View {
         cell.isInDisplayedMonth
             ? .secondary
             : .primary.opacity(Appearance.adjacentBadgeOpacity)
+    }
+    /// 视图值等价比较：namespace 与 action 由网格生命周期与 cell.id 决定，
+    /// 不参与比较。等价时 SwiftUI 跳过 body 求值，选中日移动只重算
+    /// 新旧两格，无障碍标签的 String(format:) 不再对 42 格全量执行。
+    static func == (lhs: CalendarDayCell, rhs: CalendarDayCell) -> Bool {
+        lhs.cell == rhs.cell
+            && lhs.isSelected == rhs.isSelected
+            && lhs.badge == rhs.badge
+            && lhs.holidayMark == rhs.holidayMark
+            && lhs.isWeekend == rhs.isWeekend
     }
 }
 

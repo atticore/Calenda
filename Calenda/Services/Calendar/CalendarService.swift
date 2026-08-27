@@ -24,6 +24,10 @@ nonisolated struct CalendarService: Sendable {
 
     private let timeZone: TimeZone
     private let systemFirstWeekday: CalendarWeekday
+    /// 热路径（noonDate/dayID/键盘移动）复用的已配置 Calendar；
+    /// timeZone 与 systemFirstWeekday 在 init 时即冻结，
+    /// 每次调用重建并重配 Calendar 是纯开销。
+    private let reuseCalendar: Calendar
 
     var configuredTimeZone: TimeZone {
         timeZone
@@ -34,9 +38,14 @@ nonisolated struct CalendarService: Sendable {
         systemFirstWeekday: CalendarWeekday? = nil
     ) {
         self.timeZone = timeZone
-        self.systemFirstWeekday = systemFirstWeekday
+        let resolvedFirstWeekday = systemFirstWeekday
             ?? CalendarWeekday(rawValue: Calendar.autoupdatingCurrent.firstWeekday)
             ?? .monday
+        self.systemFirstWeekday = resolvedFirstWeekday
+        reuseCalendar = Self.makeCalendar(
+            timeZone: timeZone,
+            firstWeekday: resolvedFirstWeekday
+        )
     }
 
     func cells(
@@ -51,7 +60,12 @@ nonisolated struct CalendarService: Sendable {
         let firstWeekday = weekStart.resolvedWeekday(
             systemFirstWeekday: systemFirstWeekday
         )
-        let calendar = makeCalendar(firstWeekday: firstWeekday)
+        // 月份网格重建是冷路径（跨天/换月），布局随 weekStart 变化，
+        // 与热路径复用的 reuseCalendar 分开构建。
+        let calendar = Self.makeCalendar(
+            timeZone: timeZone,
+            firstWeekday: firstWeekday
+        )
         let firstDayID = CalendarDayID(
             year: displayedMonth.year,
             month: displayedMonth.month,
@@ -88,11 +102,11 @@ nonisolated struct CalendarService: Sendable {
     }
 
     func dayID(for date: Date) -> CalendarDayID {
-        dayID(for: date, calendar: makeCalendar(firstWeekday: systemFirstWeekday))
+        dayID(for: date, calendar: reuseCalendar)
     }
 
     func noonDate(for id: CalendarDayID) -> Date? {
-        date(for: id, calendar: makeCalendar(firstWeekday: systemFirstWeekday))
+        date(for: id, calendar: reuseCalendar)
     }
 
     func isValid(month: CalendarMonthID) -> Bool {
@@ -103,7 +117,7 @@ nonisolated struct CalendarService: Sendable {
         byAdding offset: Int,
         to day: CalendarDayID
     ) -> CalendarDayID? {
-        let calendar = makeCalendar(firstWeekday: systemFirstWeekday)
+        let calendar = reuseCalendar
         guard
             let date = date(for: day, calendar: calendar),
             let adjustedDate = calendar.date(byAdding: .day, value: offset, to: date)
@@ -120,7 +134,7 @@ nonisolated struct CalendarService: Sendable {
         guard isValid(month: displayedMonth) else {
             return nil
         }
-        let calendar = makeCalendar(firstWeekday: systemFirstWeekday)
+        let calendar = reuseCalendar
         let firstDay = CalendarDayID(
             year: displayedMonth.year,
             month: displayedMonth.month,
@@ -139,7 +153,10 @@ nonisolated struct CalendarService: Sendable {
         return CalendarMonthID(year: year, month: month)
     }
 
-    private func makeCalendar(firstWeekday: CalendarWeekday) -> Calendar {
+    private static func makeCalendar(
+        timeZone: TimeZone,
+        firstWeekday: CalendarWeekday
+    ) -> Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
         calendar.firstWeekday = firstWeekday.rawValue

@@ -195,15 +195,25 @@ final class AppModel {
         )
     }
 
+    /// 同一自然日内分钟级刷新没有可观察状态变化（视图不读 now，
+    /// freshness 也不驱动展示），跳过 42 格重建与农历/节假日快照
+    /// 重取，避免面板打开期间每分钟一次的全网格重渲染。
     func refreshFromClock() {
+        refreshFromClock(forceRebuild: false)
+    }
+
+    /// forceRebuild 供系统日历/时区/地区变化路径使用：即使 today
+    /// 未变，新的 systemFirstWeekday 或时区也可能改变网格布局。
+    private func refreshFromClock(forceRebuild: Bool) {
         cancelMonthPreparation()
         let previousToday = today
         now = clock.now
         let newToday = calendarService.dayID(for: now)
-        today = newToday
-        if newToday != previousToday {
-            todayLunarInformation = nil
+        guard forceRebuild || newToday != previousToday else {
+            return
         }
+        today = newToday
+        todayLunarInformation = nil
         if selectedDay == previousToday {
             selectedDay = newToday
         }
@@ -224,7 +234,7 @@ final class AppModel {
 
     private func handleSystemChange() {
         calendarService = CalendarService()
-        refreshFromClock()
+        refreshFromClock(forceRebuild: true)
         scheduleMidnightRefresh()
     }
 
@@ -545,8 +555,10 @@ final class AppModel {
     ) -> [CalendarDayID: LunarDayInformation] {
         var informationByDay: [CalendarDayID: LunarDayInformation] = [:]
         informationByDay.reserveCapacity(cells.count)
-        for cell in cells where snapshot.information(for: cell.id) != nil {
-            informationByDay[cell.id] = snapshot.information(for: cell.id)
+        for cell in cells {
+            if let information = snapshot.information(for: cell.id) {
+                informationByDay[cell.id] = information
+            }
         }
         return informationByDay
     }

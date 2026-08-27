@@ -9,6 +9,14 @@ import SwiftUI
 
 private enum CalendarGridPresentation {
     static let weekdayLocaleIdentifier = "zh_Hans_CN"
+    /// veryShortWeekdaySymbols 按「周日起始」排列；面板 locale 固定为
+    /// zh_Hans_CN，符号集是常量，只解一次供星期标题复用，
+    /// 避免每次渲染为 7 个标题各复制并重设 Calendar locale。
+    static let weekdaySymbols: [String] = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: weekdayLocaleIdentifier)
+        return calendar.veryShortWeekdaySymbols
+    }()
 }
 
 struct CalendarGrid: View {
@@ -66,6 +74,7 @@ struct CalendarGrid: View {
                         model.select(cell.id)
                     }
                 )
+                .equatable()
                 // VoiceOver 仍可逐格操作；这里只排除会参与系统键盘焦点
                 // 迁移的 AppKit/SwiftUI focus chain。
                 .focusable(false)
@@ -109,12 +118,7 @@ struct CalendarGrid: View {
 
 private extension CalendarWeekday {
     var symbol: String {
-        var calendar = Calendar.autoupdatingCurrent
-        calendar.locale = Locale(
-            identifier: CalendarGridPresentation.weekdayLocaleIdentifier
-        )
-        let symbols = calendar.veryShortWeekdaySymbols
         let index = rawValue - CalendarWeekday.sunday.rawValue
-        return symbols[index]
+        return CalendarGridPresentation.weekdaySymbols[index]
     }
 }
