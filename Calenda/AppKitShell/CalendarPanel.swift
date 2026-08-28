@@ -54,7 +54,9 @@ final class CalendarPanel: NSPanel {
         hidesOnDeactivate = false
         isReleasedWhenClosed = false
         isMovable = false
-        animationBehavior = .utilityWindow
+        // 状态项在 mouseDown 即开面板；系统窗口动画会跨过按下/抬起
+        // 阶段并暴露玻璃材质的未激活帧，因此由控制器直接控制显隐。
+        animationBehavior = .none
         collectionBehavior = PanelConfiguration.collectionBehavior
         contentMinSize = PanelConfiguration.contentSize
         contentMaxSize = PanelConfiguration.contentSize

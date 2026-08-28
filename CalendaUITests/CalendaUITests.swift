@@ -12,9 +12,14 @@ import XCTest
 final class CalendaUITests: XCTestCase {
     private enum Fixture {
         static let accessibilityLabel = "Calenda 日历"
+        static let applicationBundleIdentifier = "com.atticore.Calenda"
+        static let foregroundApplicationBundleIdentifier = "com.apple.finder"
         static let existenceTimeout: TimeInterval = 5
         static let hittablePollTimeout: TimeInterval = 1.5
         static let pollInterval: TimeInterval = 0.2
+        static let panelVisibilityPollInterval: TimeInterval = 0.01
+        static let visiblePanelAlphaThreshold = 0.99
+        static let floatingWindowLevel = NSWindow.Level.floating.rawValue
 
         // 面板内控件的 accessibility 标签（与 AppText 默认值一致）
         static let monthPickerAccessibilityLabel = "选择年月"
@@ -130,34 +135,77 @@ final class CalendaUITests: XCTestCase {
         let application = XCUIApplication()
         application.launchEnvironment["CALENDA_DISABLE_NETWORK_REFRESH"] = "1"
         application.launch()
-        application.activate()
+        XCUIApplication(
+            bundleIdentifier: Fixture.foregroundApplicationBundleIdentifier
+        ).activate()
+
+        let foregroundDeadline = Date().addingTimeInterval(
+            Fixture.existenceTimeout
+        )
+        while NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+            == Fixture.applicationBundleIdentifier,
+            Date() < foregroundDeadline {
+            Thread.sleep(forTimeInterval: Fixture.panelVisibilityPollInterval)
+        }
+        XCTAssertNotEqual(
+            NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
+            Fixture.applicationBundleIdentifier,
+            "测试按下前 Calenda 应处于未激活态"
+        )
 
         let item = try hittableStatusItem(on: application)
 
         // 1. 按住状态项 3 秒不抬起；后台观察线程只在前 2.2 秒轮询，
         //    足以区分"按下即开"与"抬起才开"（抬起发生在 3 秒末）。
         let probe = PanelOpenProbe()
-        let poller = Thread(block: { [weak self] in
+        let poller = Thread(block: {
             let stopAt = Date().addingTimeInterval(2.2)
             while Date() < stopAt {
-                if self?.panelWindowExists() == true {
-                    probe.markOpen()
+                let panelAlpha = Self.panelWindowAlpha()
+                let applicationIsActive =
+                    NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+                    == Fixture.applicationBundleIdentifier
+                probe.sample(
+                    panelIsVisible: panelAlpha.map {
+                        $0 >= Fixture.visiblePanelAlphaThreshold
+                    } ?? false,
+                    applicationIsActive: applicationIsActive
+                )
+                if probe.openedWhilePressed {
                     break
                 }
-                Thread.sleep(forTimeInterval: 0.1)
+                Thread.sleep(
+                    forTimeInterval: Fixture.panelVisibilityPollInterval
+                )
             }
         })
         poller.start()
         item.press(forDuration: 3)
 
         XCTAssertTrue(
-            probe.isOpen,
+            probe.openedWhilePressed,
             "面板应在状态项按下期间（未抬起）即打开"
+        )
+        XCTAssertFalse(
+            probe.becameVisibleBeforeApplicationActivation,
+            "面板不得在 Calenda 激活前以未激活样式显示"
         )
         XCTAssertTrue(
             waitForPanel(visible: true, timeout: Fixture.existenceTimeout),
             "抬起鼠标后面板应保持打开"
         )
+        let panelWindow = application.windows.matching(
+            NSPredicate(format: "title == %@", Fixture.accessibilityLabel)
+        ).firstMatch
+        let activePanelScreenshot = XCTAttachment(
+            screenshot: panelWindow.exists
+                ? panelWindow.screenshot()
+                : XCUIScreen.main.screenshot()
+        )
+        activePanelScreenshot.name =
+            "Active panel opened from inactive application"
+        activePanelScreenshot.lifetime = .keepAlways
+        add(activePanelScreenshot)
 
         // 2. 点击主屏菜单栏中段空白（避开左侧应用菜单、中央刘海与
         //    右侧系统状态项；该点不关联任何 NSWindow，只能经本地
@@ -918,19 +966,26 @@ final class CalendaUITests: XCTestCase {
     /// Calenda 在屏的浮动层级窗口只有日历面板；状态项与菜单栏
     /// 窗口层级不同，已 orderOut 的面板不会计入在屏查询。
     private func panelWindowExists() -> Bool {
+        Self.panelWindowInfo() != nil
+    }
+
+    private static func panelWindowAlpha() -> Double? {
+        (panelWindowInfo()?["kCGWindowAlpha"] as? NSNumber)?.doubleValue
+    }
+
+    private static func panelWindowInfo() -> [String: Any]? {
         guard
             let list = CGWindowListCopyWindowInfo(
                 [.optionOnScreenOnly],
                 kCGNullWindowID
             ) as? [[String: Any]]
         else {
-            return false
+            return nil
         }
-        // NSWindow.Level.floating 对应的 CG 层级为 3（NSFloatingWindowLevel）。
-        let floatingLevel = 3
-        return list.contains { info in
+        return list.first { info in
             guard (info["kCGWindowOwnerName"] as? String) == "Calenda",
-                  (info["kCGWindowLayer"] as? Int) == floatingLevel
+                  (info["kCGWindowLayer"] as? Int)
+                    == Fixture.floatingWindowLevel
             else {
                 return false
             }
@@ -953,17 +1008,30 @@ final class CalendaUITests: XCTestCase {
     }
 }
 
-/// 后台轮询线程与测试主线程之间的"面板已出现"标记。
-/// `@unchecked Sendable` 的不变量：open 仅经 NSLock 访问。
+/// 后台轮询线程与测试主线程之间的面板可见性探针。
+/// `@unchecked Sendable` 的不变量：所有可变状态仅经 NSLock 访问。
 private final class PanelOpenProbe: @unchecked Sendable {
     private let lock = NSLock()
-    private var open = false
+    private var opened = false
+    private var visibleBeforeActivation = false
 
-    var isOpen: Bool {
-        lock.withLock { open }
+    var openedWhilePressed: Bool {
+        lock.withLock { opened }
     }
 
-    func markOpen() {
-        lock.withLock { open = true }
+    var becameVisibleBeforeApplicationActivation: Bool {
+        lock.withLock { visibleBeforeActivation }
+    }
+
+    func sample(panelIsVisible: Bool, applicationIsActive: Bool) {
+        guard panelIsVisible else {
+            return
+        }
+        lock.withLock {
+            opened = true
+            if !applicationIsActive {
+                visibleBeforeActivation = true
+            }
+        }
     }
 }
