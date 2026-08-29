@@ -56,8 +56,6 @@ final class PanelController: PanelControlling {
     private let outsideClickMonitor = OutsideClickMonitor()
     private var visibility = PanelVisibilityStateMachine()
     private var activationPolicyBeforePanel: NSApplication.ActivationPolicy?
-    private var activationObserver: NSObjectProtocol?
-    private var keyWindowObserver: NSObjectProtocol?
 
     init(
         positioner: any PanelPositioning = PanelPositioner(),
@@ -110,7 +108,6 @@ final class PanelController: PanelControlling {
             return
         }
 
-        removePresentationObservers()
         outsideClickMonitor.remove()
         panel.orderOut(nil)
         appModel.panelDidDisappear()
@@ -147,20 +144,26 @@ final class PanelController: PanelControlling {
 
         panel.setFrame(panelFrame, display: false)
         panel.alphaValue = Presentation.hiddenPanelAlpha
-        installPresentationObservers()
-        // accessory 应用有时能显示面板，却不能可靠成为键窗口，
-        // 键盘事件会继续路由给原前台应用。临时切到 regular，
-        // 沿用设置窗口已验证的激活路径；关闭面板后恢复 accessory。
+        // accessory 应用不能稳定接收键盘：临时切到 regular，
+        // 关闭面板后恢复。这只影响键盘路由；面板的可见与
+        // key 状态不再依赖激活完成。
         activationPolicyBeforePanel = NSApp.activationPolicy()
         if activationPolicyBeforePanel == .accessory {
             NSApp.setActivationPolicy(.regular)
         }
-        NSApp.activate(ignoringOtherApps: true)
+        // nonactivating 面板可在应用未激活时立即成为 key 窗口：
+        // 先以全透明置前并取得 key，再在同一事件循环内放开透明度。
+        // 首个可见帧必然是 key 窗口，玻璃材质不会先画未激活样式、
+        // 激活后变色而闪动；整个序列同步于 mouseDown，按下即见。
         panel.makeKeyAndOrderFront(nil)
+        panel.contentView?.displayIfNeeded()
+        panel.alphaValue = Presentation.visiblePanelAlpha
+        // 激活仅为让系统把键盘事件路由给本应用（key 窗口只有
+        // 活跃应用才能收键），完成时机不影响面板可见性。
+        NSApp.activate(ignoringOtherApps: true)
         // 状态栏应用的面板必须显式置前，否则可能被当前活跃应用的
         // 浮层遮住，直到用户再次点击才成为最前层。
         panel.orderFrontRegardless()
-        revealPanelIfReady()
         outsideClickMonitor.install(
             panel: panel,
             anchorWindow: statusWindow,
@@ -193,50 +196,6 @@ final class PanelController: PanelControlling {
             return
         }
         NSApp.setActivationPolicy(previousPolicy)
-    }
-
-    private func installPresentationObservers() {
-        removePresentationObservers()
-        let notificationCenter = NotificationCenter.default
-        activationObserver = notificationCenter.addObserver(
-            forName: NSApplication.didBecomeActiveNotification,
-            object: NSApp,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.revealPanelIfReady()
-            }
-        }
-        keyWindowObserver = notificationCenter.addObserver(
-            forName: NSWindow.didBecomeKeyNotification,
-            object: panel,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.revealPanelIfReady()
-            }
-        }
-    }
-
-    private func removePresentationObservers() {
-        let notificationCenter = NotificationCenter.default
-        if let activationObserver {
-            notificationCenter.removeObserver(activationObserver)
-            self.activationObserver = nil
-        }
-        if let keyWindowObserver {
-            notificationCenter.removeObserver(keyWindowObserver)
-            self.keyWindowObserver = nil
-        }
-    }
-
-    private func revealPanelIfReady() {
-        guard panel.isVisible, NSApp.isActive, panel.isKeyWindow else {
-            return
-        }
-        removePresentationObservers()
-        panel.contentView?.displayIfNeeded()
-        panel.alphaValue = Presentation.visiblePanelAlpha
     }
 
     private func handleCalendarKeyDown(_ event: NSEvent) -> Bool {

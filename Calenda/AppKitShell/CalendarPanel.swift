@@ -30,7 +30,10 @@ final class CalendarPanel: NSPanel {
         let contentRect = CGRect(origin: .zero, size: PanelConfiguration.contentSize)
         super.init(
             contentRect: contentRect,
-            styleMask: .borderless,
+            // nonactivating：面板可在应用未激活时立即成为 key 窗口，
+            // 状态项 mouseDown 打开时不必等应用激活，首个可见帧
+            // 即为 key 窗口的激活样式玻璃材质。
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )

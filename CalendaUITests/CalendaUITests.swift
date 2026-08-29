@@ -157,19 +157,17 @@ final class CalendaUITests: XCTestCase {
 
         // 1. 按住状态项 3 秒不抬起；后台观察线程只在前 2.2 秒轮询，
         //    足以区分"按下即开"与"抬起才开"（抬起发生在 3 秒末）。
+        //    面板可见允许先于应用激活完成（nonactivating 面板先取
+        //    key 再显示，首帧即激活样式）；激活样式由下方截图佐证。
         let probe = PanelOpenProbe()
         let poller = Thread(block: {
             let stopAt = Date().addingTimeInterval(2.2)
             while Date() < stopAt {
                 let panelAlpha = Self.panelWindowAlpha()
-                let applicationIsActive =
-                    NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-                    == Fixture.applicationBundleIdentifier
                 probe.sample(
                     panelIsVisible: panelAlpha.map {
                         $0 >= Fixture.visiblePanelAlphaThreshold
-                    } ?? false,
-                    applicationIsActive: applicationIsActive
+                    } ?? false
                 )
                 if probe.openedWhilePressed {
                     break
@@ -185,10 +183,6 @@ final class CalendaUITests: XCTestCase {
         XCTAssertTrue(
             probe.openedWhilePressed,
             "面板应在状态项按下期间（未抬起）即打开"
-        )
-        XCTAssertFalse(
-            probe.becameVisibleBeforeApplicationActivation,
-            "面板不得在 Calenda 激活前以未激活样式显示"
         )
         XCTAssertTrue(
             waitForPanel(visible: true, timeout: Fixture.existenceTimeout),
@@ -1013,25 +1007,17 @@ final class CalendaUITests: XCTestCase {
 private final class PanelOpenProbe: @unchecked Sendable {
     private let lock = NSLock()
     private var opened = false
-    private var visibleBeforeActivation = false
 
     var openedWhilePressed: Bool {
         lock.withLock { opened }
     }
 
-    var becameVisibleBeforeApplicationActivation: Bool {
-        lock.withLock { visibleBeforeActivation }
-    }
-
-    func sample(panelIsVisible: Bool, applicationIsActive: Bool) {
+    func sample(panelIsVisible: Bool) {
         guard panelIsVisible else {
             return
         }
         lock.withLock {
             opened = true
-            if !applicationIsActive {
-                visibleBeforeActivation = true
-            }
         }
     }
 }
