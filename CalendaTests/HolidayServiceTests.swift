@@ -142,6 +142,36 @@ struct HolidayDecodingTests {
 
 struct HolidayCacheStoreTests {
     @Test
+    func rejectsCacheEntryWhoseRawPayloadDoesNotMatchManifest() throws {
+        let manifest = HolidayDataManifest()
+        let entry = manifest.entry(for: 2026)!
+        let sourceURL = HolidayDataSource.jsdelivrCDN.url(for: entry)
+            .absoluteString
+        let rawPayload = Data(
+            """
+            {"year":2026,"papers":[],"days":[
+              {"name":"伪造节假日","date":"2026-01-01","isOffDay":true}
+            ]}
+            """.utf8
+        )
+        let payload = try HolidayDecoding.decodeAndValidate(
+            data: rawPayload,
+            requestedYear: 2026
+        )
+        let cacheEntry = HolidayCacheEntry(
+            payload: payload,
+            rawPayload: rawPayload,
+            sourceURL: sourceURL,
+            etag: nil,
+            lastModified: nil,
+            fetchedAt: Date(),
+            sha256: HolidayCacheStore.sha256Hex(of: rawPayload)
+        )
+
+        #expect(!manifest.validates(cacheEntry, for: 2026))
+    }
+
+    @Test
     func roundTripsEntry() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -278,7 +308,7 @@ struct HolidayServiceTests {
     }
 
     @Test
-    func newerDiskCacheWinsOverBundle() async throws {
+    func unverifiedDiskCacheCannotOverrideBundle() async throws {
         let cacheDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         let store = HolidayCacheStore(directoryURL: cacheDirectory)
@@ -310,8 +340,8 @@ struct HolidayServiceTests {
         let mark = snapshot.mark(
             for: CalendarDayID(year: 2026, month: 2, day: 17)
         )
-        #expect(mark?.name == "测试节假日")
-        #expect(mark?.isOffDay == false)
+        #expect(mark?.name == "春节")
+        #expect(mark?.isOffDay == true)
     }
 
     @Test
@@ -341,7 +371,7 @@ struct HolidayServiceTests {
     }
 
     @Test
-    func crossYearMergePrefersHigherSourceYear() async throws {
+    func unverifiedCrossYearCachesAreIgnored() async throws {
         let cacheDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         let emptyBundleDirectory = FileManager.default.temporaryDirectory
@@ -402,8 +432,9 @@ struct HolidayServiceTests {
         let mark = snapshot.mark(
             for: CalendarDayID(year: 2026, month: 12, day: 31)
         )
-        #expect(mark?.name == "新安排")
-        #expect(mark?.isOffDay == false)
+        #expect(mark == nil)
+        #expect(snapshot.availabilityByYear[2026] == .unavailable)
+        #expect(snapshot.availabilityByYear[2027] == .unavailable)
     }
 
     @Test

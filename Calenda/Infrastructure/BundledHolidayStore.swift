@@ -11,9 +11,14 @@ import Foundation
 /// 构建与测试不联网下载。快照必须通过完整领域校验才会被采用。
 nonisolated struct BundledHolidayStore: Sendable {
     private let bundleURL: URL
+    private let manifest: HolidayDataManifest
 
-    init(bundleURL: URL? = nil) {
+    init(
+        bundleURL: URL? = nil,
+        manifest: HolidayDataManifest = HolidayDataManifest()
+    ) {
         self.bundleURL = bundleURL ?? Bundle.main.bundleURL
+        self.manifest = manifest
     }
 
     func record(for year: Int) -> HolidayYearRecord? {
@@ -22,6 +27,9 @@ nonisolated struct BundledHolidayStore: Sendable {
         }
         let data = Self.snapshotData(for: year, in: bundle)
         guard let data else {
+            return nil
+        }
+        guard manifest.validatesBundledSnapshot(data, for: year) else {
             return nil
         }
         guard

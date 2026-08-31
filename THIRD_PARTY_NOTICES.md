@@ -36,9 +36,33 @@ SOFTWARE.
 ## holiday-cn — 中国法定节假日数据
 
 - 上游：<https://github.com/NateScarlet/holiday-cn>（作者 NateScarlet）。
-- 用途：法定节假日与调休安排。安装包内置 `Calenda/Resources/Holidays/2025.json`、`2026.json` 快照；运行时经固定镜像链（cdn.jsdelivr.net、fastly.jsdelivr.net、raw.githubusercontent.com）检查更新。
+- 用途：法定节假日与调休安排。安装包内置 `Calenda/Resources/Holidays/2025.json`、`2026.json` 快照；运行时经固定镜像链（cdn.jsdelivr.net、fastly.jsdelivr.net、raw.githubusercontent.com）检查与应用内固定提交和 SHA-256 一致的内容。
 - 数据出处：上游项目自动抓取国务院办公厅历年放假公告整理而成，每年数据文件的 `papers` 字段附公告原文链接，数据内容以公告为准。
-- 许可：MIT（版权声明同上，权利人为 NateScarlet）
+- 许可：MIT
+
+```
+MIT License
+
+Copyright (c) 2019 NateScarlet
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
 
 ## Open-Meteo — 当前天气与城市搜索
 

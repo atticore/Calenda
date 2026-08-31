@@ -32,49 +32,13 @@ nonisolated protocol HolidayFetching: Sendable {
 nonisolated final class HolidayClient: HolidayFetching, Sendable {
     private let session: URLSession
     private let isNetworkDisabled: Bool
+    private let manifest: HolidayDataManifest
 
-    enum Source: CaseIterable, Sendable {
-        case jsdelivrCDN
-        case jsdelivrFastly
-        case githubRaw
-
-        func url(for year: Int) -> URL {
-            switch self {
-            case .jsdelivrCDN:
-                return url(
-                    host: "cdn.jsdelivr.net",
-                    year: year
-                )
-            case .jsdelivrFastly:
-                return url(
-                    host: "fastly.jsdelivr.net",
-                    year: year
-                )
-            case .githubRaw:
-                return url(
-                    host: "raw.githubusercontent.com",
-                    year: year
-                )
-            }
-        }
-
-        private func url(host: String, year: Int) -> URL {
-            var components = URLComponents()
-            components.scheme = "https"
-            components.host = host
-            let suffix: String
-            switch self {
-            case .jsdelivrCDN, .jsdelivrFastly:
-                suffix = "gh/NateScarlet/holiday-cn@master"
-            case .githubRaw:
-                suffix = "NateScarlet/holiday-cn/master"
-            }
-            components.path = "/\(suffix)/\(year).json"
-            return components.url!
-        }
-    }
-
-    init(protocolClasses: [AnyClass]? = nil) {
+    init(
+        manifest: HolidayDataManifest = HolidayDataManifest(),
+        protocolClasses: [AnyClass]? = nil
+    ) {
+        self.manifest = manifest
         isNetworkDisabled = ProcessInfo.processInfo.environment[
             "CALENDA_DISABLE_NETWORK_REFRESH"
         ] == "1"
@@ -107,11 +71,14 @@ nonisolated final class HolidayClient: HolidayFetching, Sendable {
         guard !isNetworkDisabled else {
             return .failed("网络刷新已被测试环境禁用")
         }
+        guard let entry = manifest.entry(for: year) else {
+            return .notFound
+        }
 
         var lastFailure = "无可用镜像源"
         var allSourcesNotFound = true
-        for source in Source.allCases {
-            let url = source.url(for: year)
+        for source in HolidayDataSource.allCases {
+            let url = source.url(for: entry)
             guard NetworkPolicy.isTrusted(url) else {
                 continue
             }

@@ -137,7 +137,7 @@ struct HolidayClientTests {
         )
 
         let result = await makeClient().fetch(
-            year: 2027,
+            year: 2026,
             etag: nil,
             lastModified: nil
         )
@@ -222,7 +222,7 @@ struct HolidayClientTests {
         }
 
         let result = await makeClient().fetch(
-            year: 2031,
+            year: 2026,
             etag: nil,
             lastModified: nil
         )
@@ -240,11 +240,22 @@ struct HolidayClientServiceIntegrationTests {
     func allMirror404MarksFutureYearUnpublished() async {
         let emptyBundle = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let manifest = HolidayDataManifest(entries: [
+            HolidayDataManifest.Entry(
+                year: 2031,
+                sourceRevision: "test-revision",
+                expectedSHA256: "test-sha256"
+            ),
+        ])
         let service = HolidayService(
             cacheDirectory: FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString, isDirectory: true),
             bundleURL: emptyBundle,
-            client: HolidayClient(protocolClasses: [HolidayStubProtocol.self])
+            client: HolidayClient(
+                manifest: manifest,
+                protocolClasses: [HolidayStubProtocol.self]
+            ),
+            manifest: manifest
         )
         HolidayStubProtocol.reset()
         for host in NetworkPolicy.trustedHosts {
@@ -257,6 +268,7 @@ struct HolidayClientServiceIntegrationTests {
         )
 
         #expect(snapshot.availabilityByYear[2031] == .unpublished)
+        #expect(HolidayStubProtocol.hostsRequested.count == 3)
     }
 }
 
@@ -293,6 +305,7 @@ struct HolidayServiceRefreshTests {
 
     private func makeService(
         client: (any HolidayFetching)? = nil,
+        manifest: HolidayDataManifest = HolidayDataManifest(),
         clock: any ClockProviding = FixedClock(
             now: ISO8601DateFormatter().date(from: "2026-08-21T10:00:00Z")!
         )
@@ -302,7 +315,8 @@ struct HolidayServiceRefreshTests {
                 .appendingPathComponent(UUID().uuidString, isDirectory: true),
             bundleURL: emptyBundle,
             clock: clock,
-            client: client
+            client: client,
+            manifest: manifest
         )
     }
 
@@ -316,17 +330,40 @@ struct HolidayServiceRefreshTests {
         )
     }
 
+    private func manifest(
+        for data: Data,
+        year: Int
+    ) -> HolidayDataManifest {
+        HolidayDataManifest(entries: [
+            HolidayDataManifest.Entry(
+                year: year,
+                sourceRevision: "test-revision",
+                expectedSHA256: HolidayCacheStore.sha256Hex(of: data)
+            ),
+        ])
+    }
+
+    private func sourceURL(
+        for data: Data,
+        year: Int
+    ) -> String {
+        let entry = manifest(for: data, year: year).entry(for: year)!
+        return HolidayDataSource.jsdelivrCDN.url(for: entry).absoluteString
+    }
+
     @Test
     func refreshWritesValidatedPayloadToCache() async throws {
+        let payload = payloadData(year: 2027)
         let service = makeService(
             client: FakeHolidayClient(resultsByYear: [
                 2027: .payload(
-                    payloadData(year: 2027),
+                    payload,
                     etag: "\"a\"",
                     lastModified: nil,
-                    sourceURL: "https://cdn.jsdelivr.net/gh/NateScarlet/holiday-cn@master/2027.json"
+                    sourceURL: sourceURL(for: payload, year: 2027)
                 ),
-            ])
+            ]),
+            manifest: manifest(for: payload, year: 2027)
         )
 
         let snapshot = await service.holidays(
@@ -342,7 +379,7 @@ struct HolidayServiceRefreshTests {
     }
 
     @Test
-    func refreshFailureKeepsLastGoodData() async throws {
+    func refreshFailureDoesNotUseLegacyUnverifiedCache() async throws {
         let cacheDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         let store = HolidayCacheStore(directoryURL: cacheDirectory)
@@ -378,11 +415,8 @@ struct HolidayServiceRefreshTests {
             policy: .forceRefresh
         )
 
-        #expect(snapshot.availabilityByYear[2026] == .published)
-        #expect(
-            snapshot.mark(for: CalendarDayID(year: 2026, month: 2, day: 17))
-                == HolidayMark(name: "春节", isOffDay: true)
-        )
+        #expect(snapshot.availabilityByYear[2026] == .unavailable)
+        #expect(snapshot.marksByDay.isEmpty)
         #expect(
             store.entry(for: 2026)?.fetchedAt
                 == Date(timeIntervalSince1970: 1_000)
@@ -446,17 +480,58 @@ struct HolidayServiceRefreshTests {
     func invalidRemotePayloadIsRejectedAndNotCached() async {
         let cacheDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let invalidPayload = Data(
+            "{\"year\":2099,\"papers\":[],\"days\":[]}".utf8
+        )
         let service = HolidayService(
             cacheDirectory: cacheDirectory,
             bundleURL: emptyBundle,
             client: FakeHolidayClient(resultsByYear: [
                 2026: .payload(
-                    Data("{\"year\":2099,\"papers\":[],\"days\":[]}".utf8),
+                    invalidPayload,
                     etag: nil,
                     lastModified: nil,
-                    sourceURL: "https://cdn.jsdelivr.net/gh/NateScarlet/holiday-cn@master/2026.json"
+                    sourceURL: sourceURL(for: invalidPayload, year: 2026)
                 ),
-            ])
+            ]),
+            manifest: manifest(for: invalidPayload, year: 2026)
+        )
+
+        let snapshot = await service.holidays(
+            for: [2026],
+            policy: .forceRefresh
+        )
+
+        #expect(snapshot.availabilityByYear[2026] == .unavailable)
+        #expect(snapshot.marksByDay.isEmpty)
+        let store = HolidayCacheStore(directoryURL: cacheDirectory)
+        #expect(store.entry(for: 2026) == nil)
+    }
+
+    @Test
+    func forgedPayloadWithApprovedSourceIsRejectedAndNotCached() async {
+        let trustedPayload = payloadData(year: 2026)
+        let forgedPayload = Data(
+            """
+            {"year":2026,"papers":["https://www.gov.cn/zhengce/x.htm"],"days":[
+              {"name":"伪造节假日","date":"2026-01-01","isOffDay":true}
+            ]}
+            """.utf8
+        )
+        let cacheDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let service = HolidayService(
+            cacheDirectory: cacheDirectory,
+            bundleURL: emptyBundle,
+            client: FakeHolidayClient(resultsByYear: [
+                2026: .payload(
+                    forgedPayload,
+                    etag: nil,
+                    lastModified: nil,
+                    sourceURL: sourceURL(for: trustedPayload, year: 2026)
+                ),
+            ]),
+            manifest: manifest(for: trustedPayload, year: 2026)
         )
 
         let snapshot = await service.holidays(

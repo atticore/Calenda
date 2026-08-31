@@ -59,9 +59,14 @@ nonisolated struct HolidayYearRecord: Sendable, Equatable {
         )
     }
 
-    func cacheEntry(sourceURL: String, sha256: String) -> HolidayCacheEntry {
+    func cacheEntry(
+        rawPayload: Data,
+        sourceURL: String,
+        sha256: String
+    ) -> HolidayCacheEntry {
         HolidayCacheEntry(
             payload: payload,
+            rawPayload: rawPayload,
             sourceURL: sourceURL,
             etag: etag,
             lastModified: lastModified,
@@ -89,6 +94,7 @@ actor HolidayService: HolidayProviding, HolidayChecking {
     private let cacheStore: HolidayCacheStore
     private let clock: any ClockProviding
     private let client: (any HolidayFetching)?
+    private let manifest: HolidayDataManifest
 
     private var memory: [Int: HolidayYearRecord] = [:]
     /// 网络探测得出的年度可用性覆盖（如未来年 404 → unpublished）
@@ -99,12 +105,17 @@ actor HolidayService: HolidayProviding, HolidayChecking {
         cacheDirectory: URL? = nil,
         bundleURL: URL? = nil,
         clock: any ClockProviding = SystemClock(),
-        client: (any HolidayFetching)? = nil
+        client: (any HolidayFetching)? = nil,
+        manifest: HolidayDataManifest = HolidayDataManifest()
     ) {
-        bundleStore = BundledHolidayStore(bundleURL: bundleURL)
+        bundleStore = BundledHolidayStore(
+            bundleURL: bundleURL,
+            manifest: manifest
+        )
         cacheStore = HolidayCacheStore(directoryURL: cacheDirectory)
         self.clock = clock
         self.client = client
+        self.manifest = manifest
     }
 
     func holidays(
@@ -190,8 +201,15 @@ actor HolidayService: HolidayProviding, HolidayChecking {
         }
 
         let bundled = bundleStore.record(for: year)
-        let cached = cacheStore.entry(for: year)
-            .map(HolidayYearRecord.init(cacheEntry:))
+        let cached: HolidayYearRecord?
+        if
+            let entry = cacheStore.entry(for: year),
+            manifest.validates(entry, for: year)
+        {
+            cached = HolidayYearRecord(cacheEntry: entry)
+        } else {
+            cached = nil
+        }
 
         let picked: HolidayYearRecord?
         switch (bundled, cached) {
@@ -225,7 +243,6 @@ actor HolidayService: HolidayProviding, HolidayChecking {
             from: now
         )
         let currentYear = nowComponents.year ?? 0
-        let currentMonth = nowComponents.month ?? 0
 
         for year in years.sorted() {
             guard shouldAttempt(year: year, policy: policy, now: now) else {
@@ -251,6 +268,16 @@ actor HolidayService: HolidayProviding, HolidayChecking {
                     : .unavailable
 
             case let .payload(data, etag, lastModified, sourceURL):
+                guard manifest.validates(
+                    data: data,
+                    sourceURL: sourceURL,
+                    for: year
+                ) else {
+                    Self.logger.error(
+                        "远端数据未通过来源或完整性校验，保留最后一次有效数据"
+                    )
+                    continue
+                }
                 guard
                     let payload = try? HolidayDecoding.decodeAndValidate(
                         data: data,
@@ -278,6 +305,7 @@ actor HolidayService: HolidayProviding, HolidayChecking {
                 do {
                     try cacheStore.write(
                         record.cacheEntry(
+                            rawPayload: data,
                             sourceURL: sourceURL,
                             sha256: HolidayCacheStore.sha256Hex(of: data)
                         ),

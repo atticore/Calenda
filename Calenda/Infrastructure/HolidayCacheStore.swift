@@ -9,18 +9,38 @@ import CryptoKit
 import Foundation
 
 /// 磁盘缓存条目（设计 10.4）：保存 payload、来源、etag、lastModified、
-/// fetchedAt 与内容 SHA-256；SHA-256 只用于变更检测与诊断。
+/// fetchedAt 与原始载荷。读取时以应用内清单重验原始载荷的来源与 SHA-256。
 nonisolated struct HolidayCacheEntry: Codable, Sendable, Equatable {
     let payload: HolidayYearPayload
+    let rawPayload: Data?
     let sourceURL: String
     let etag: String?
     let lastModified: String?
     let fetchedAt: Date
     let sha256: String
+
+    init(
+        payload: HolidayYearPayload,
+        rawPayload: Data? = nil,
+        sourceURL: String,
+        etag: String?,
+        lastModified: String?,
+        fetchedAt: Date,
+        sha256: String
+    ) {
+        self.payload = payload
+        self.rawPayload = rawPayload
+        self.sourceURL = sourceURL
+        self.etag = etag
+        self.lastModified = lastModified
+        self.fetchedAt = fetchedAt
+        self.sha256 = sha256
+    }
 }
 
-/// Application Support 子目录下的按年缓存（设计 14）：
-/// 校验失败绝不覆盖最后一次有效数据，写入使用临时文件原子替换。
+/// Application Support 子目录下的按年缓存（设计 14）。缓存文件是未受信任
+/// 的持久化载荷；HolidayService 只会采用经 HolidayDataManifest 重验的条目。
+/// 写入使用临时文件原子替换。
 nonisolated struct HolidayCacheStore: Sendable {
     private let directoryURL: URL
 

@@ -20,3 +20,17 @@ DerivedData/
 
 # Private open-source provenance notes (never publish)
 docs/private/
+
+# Local secrets and signing material
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.mobileprovision
+*.cer
+*.crt
+*.der
+*.jks
+*.keystore

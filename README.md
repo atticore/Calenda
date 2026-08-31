@@ -10,7 +10,7 @@ Calenda 是菜单栏应用（LSUIElement）：启动后不出现在 Dock，只�
 
 - 42 格公历月历，每周首日可选周一、周日或跟随系统。
 - 农历日期、农历节日与二十四节气，可在设置中分别开关。
-- 中国法定节假日与调休上班标记；安装包内置 2025、2026 年数据快照，联网后自动检查更新。
+- 中国法定节假日与调休上班标记；安装包内置 2025、2026 年数据快照，并仅接受与应用内清单匹配的联网校验结果。
 - 月份选择器、上/下月切换、回到今天。
 
 **天气（可选）**
@@ -63,18 +63,19 @@ Calenda 自身代码以 [MIT License](LICENSE) 发布，同时依赖以下第三
 | 中国法定节假日与调休 | [NateScarlet/holiday-cn](https://github.com/NateScarlet/holiday-cn)（上游自动抓取国务院办公厅放假公告，每年数据文件的 `papers` 字段附公告原文链接） | MIT |
 | 当前天气与城市搜索 | [Open-Meteo](https://open-meteo.com/) Forecast API 与 Geocoding API | [使用条款](https://open-meteo.com/en/terms)：免费档仅限非商业用途，数据以 CC BY 4.0 提供并要求署名 |
 
-节假日数据在运行时按固定镜像链（jsDelivr CDN → jsDelivr Fastly → GitHub Raw）刷新，支持 ETag / Last-Modified 协商缓存与最后有效数据回退；内置快照与镜像内容均来自上述仓库。
+节假日数据在运行时按固定镜像链（jsDelivr CDN → jsDelivr Fastly → GitHub Raw）检查；每个年度均固定到 holiday-cn 的不可变提交并校验 SHA-256，未获清单批准的年份或内容不会写入缓存。内置快照与镜像内容均来自上述仓库，新增或更正数据随 Calenda 更新发布。
 
 > **商用提示**：Open-Meteo 免费档明确仅限非商业用途。若你分发包含天气功能的商业版本，需自行购买 Open-Meteo 商业订阅或更换天气提供商；农历与节假日组件（MIT）允许商用，但须保留版权声明。
 
 ## 隐私与网络行为
 
-- 应用启用 App Sandbox，仅申请网络客户端与按需定位两项能力；定位用途描述为“仅用于查询本地天气”。
+- 应用启用 App Sandbox，仅申请网络客户端与按需定位两项能力；定位用途描述为“用于按需识别所在城市并获取当地天气”。
 - 公历、农历、节气完全离线；节假日先读内置快照与本地缓存，天气先读缓存，网络失败不会阻止日历渲染。
-- 出站请求仅面向 5 个固定 HTTPS 主机（`NetworkPolicy.trustedHosts` 白名单），重定向逐跳校验，使用不落盘的 ephemeral 会话，不携带 Cookie。
-- 位置权限不会在启动时请求；只有选择“使用当前位置”时触发一次性定位，失败时回退默认城市。
-- 偏好保存在 UserDefaults；天气缓存位于 `~/Library/Application Support/Calenda/Weather/`，节假日缓存位于 `~/Library/Application Support/Calenda/Holidays/`，均可在设置中清除。
+- 应用控制的出站请求仅面向 5 个固定 HTTPS 主机（`NetworkPolicy.trustedHosts` 白名单），重定向逐跳校验，使用不落盘的 ephemeral 会话，不携带 Cookie。Apple Core Location 的系统逆地理编码是独立系统服务。
+- 位置权限不会在启动时请求；只有选择“使用当前位置”时触发一次性定位。为识别城市名称，系统逆地理编码可能处理设备返回的精确当前位置；天气请求使用应用归一化后的近似经纬度，失败时回退默认城市。
+- 偏好保存在 UserDefaults；天气缓存位于 `~/Library/Application Support/Calenda/Weather/`，节假日缓存位于 `~/Library/Application Support/Calenda/Holidays/`，均可在设置中清除。缓存可能包含城市名称、近似坐标、天气快照、节假日数据、来源和获取时间。
 - 无账号、无遥测、无分析、无后端服务。
+- 完整数据接收方、保存内容和清除方式见 [PRIVACY.md](PRIVACY.md)。
 
 ## 技术架构
 
@@ -132,4 +133,4 @@ xcodebuild -project Calenda.xcodeproj -scheme Calenda \
 
 ## 当前边界
 
-仓库尚不包含：CI 配置、发布签名 / 公证流程、Release 产物。节假日内置快照目前覆盖 2025–2026 年，更多年份依赖联网更新。
+仓库尚不包含：CI 配置、发布签名 / 公证流程、Release 产物。节假日内置快照目前覆盖 2025–2026 年，新增或更正年度数据需要随应用更新发布；公开发布前检查见 [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md)。
